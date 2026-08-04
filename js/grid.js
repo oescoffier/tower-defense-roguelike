@@ -19,6 +19,8 @@ export class Grid {
     this.base = { x: this.cols - 1, y: (this.rows >> 1) };
     this.spawnEdge = 0;
     this.baseEdge = 1;
+    this.airEdge = 2;
+    this.airFrac = 0.5;
 
     this.generate(seed);
 
@@ -56,6 +58,7 @@ export class Grid {
     this.cells.fill(CELL.EMPTY);
 
     this._placeSpawnAndBase(rng);
+    this._pickAirEntry(rng);
     this.airBowSign = rng.bool() ? 1 : -1;
 
     this.shape = rng.pick(['clusters', 'zigzag', 'chambers', 'pillars']);
@@ -114,6 +117,35 @@ export class Grid {
     if (edge === 1) return { x: 1, y: 0 };
     if (edge === 2) return { x: 0, y: -1 };
     return { x: 0, y: 1 };
+  }
+
+  /** Point en pixels sur un bord donné, à la fraction f (0..1) de sa longueur. */
+  _edgePixelPoint(edge, f) {
+    const w = GRID.w, h = GRID.h;
+    if (edge === 0) return { x: 0, y: f * h };
+    if (edge === 1) return { x: w, y: f * h };
+    if (edge === 2) return { x: f * w, y: 0 };
+    return { x: f * w, y: h };
+  }
+
+  /**
+   * Choisit le point d'entrée du couloir aérien, INDÉPENDAMMENT du spawn au
+   * sol : les ennemis volants n'ont pas à partir du même endroit que ceux
+   * au sol. On retient, parmi les bords qui ne portent pas la base, celui
+   * qui offre la plus longue traversée jusqu'à la base, pour garantir une
+   * distance de vol toujours confortable quelle que soit la carte.
+   */
+  _pickAirEntry(rng) {
+    const end = { x: this.cx(this.base.x), y: this.cy(this.base.y) };
+    const candidates = [0, 1, 2, 3].filter((e) => e !== this.baseEdge);
+    let bestEdge = candidates[0], bestDist = -1;
+    for (const edge of candidates) {
+      const mid = this._edgePixelPoint(edge, 0.5);
+      const d = Math.hypot(mid.x - end.x, mid.y - end.y);
+      if (d > bestDist) { bestDist = d; bestEdge = edge; }
+    }
+    this.airEdge = bestEdge;
+    this.airFrac = rng.float(0.12, 0.88);
   }
 
   // ---- Formes d'obstacles ----
@@ -377,16 +409,18 @@ export class Grid {
   }
 
   // ----------------------------------------------------------
-  //  Chemin aérien — courbe fixe, insensible aux obstacles
-  //  et non modifiable par le joueur. Part du même bord que le spawn au
-  //  sol (quel qu'il soit) et rejoint la base par une courbe en S dont
-  //  le sens est tiré au sort à la génération.
+  //  Chemin aérien — courbe fixe, insensible aux obstacles et non
+  //  modifiable par le joueur. Indépendant du spawn au sol : les ennemis
+  //  volants entrent par le bord le plus éloigné de la base (choisi en
+  //  amont par _pickAirEntry), pour garantir une traversée toujours assez
+  //  longue, puis rejoignent la base par une courbe en S.
   // ----------------------------------------------------------
   buildAirPath() {
     const end = { x: this.cx(this.base.x), y: this.cy(this.base.y) };
-    const spawnPx = { x: this.cx(this.spawn.x), y: this.cy(this.spawn.y) };
-    const out = this._outwardDir(this.spawnEdge);
-    const start = { x: spawnPx.x + out.x * 90, y: spawnPx.y + out.y * 90 };
+    const entry = this._edgePixelPoint(this.airEdge, this.airFrac);
+    const out = this._outwardDir(this.airEdge);
+    const overshoot = 110; // marge hors-champ avant l'entrée dans la zone visible
+    const start = { x: entry.x + out.x * overshoot, y: entry.y + out.y * overshoot };
 
     const dx = end.x - start.x, dy = end.y - start.y;
     const len = Math.hypot(dx, dy) || 1;

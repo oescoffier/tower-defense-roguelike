@@ -738,7 +738,8 @@ export const KEYSTONES = {
 
 export const FX = {
   maxParticles: 1400,
-  shakeDecay: 6.5,
+  shakeDecay: 9.5,
+  shakeCap: 14,
   dmgNumberLife: 0.85,
   craterLife: 4.0,
   trailLife: 0.35

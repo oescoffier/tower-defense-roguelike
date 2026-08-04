@@ -29,6 +29,9 @@ export class Save {
   get commander() { return this.data.commander; }
   setCommander(id) { this.data.commander = id; this.persist(); }
 
+  get shakeEnabled() { return this.data.settings.shake !== false; }
+  setShakeEnabled(v) { this.data.settings.shake = !!v; this.persist(); }
+
   load() {
     try {
       const raw = localStorage.getItem(KEY);

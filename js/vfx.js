@@ -21,6 +21,7 @@ export class Vfx {
     this.shake = 0;
     this.shakeX = 0;
     this.shakeY = 0;
+    this.shakeMult = 1; // réglage joueur (0 = désactivé) — voir save.settings.shake
     this.flash = 0;
     this.flashColor = '#ffffff';
     this.chroma = 0;
@@ -93,7 +94,10 @@ export class Vfx {
     this.craters.push({ x, y, r, life, max: life });
   }
 
-  addShake(amount) { this.shake = Math.min(26, this.shake + amount); }
+  addShake(amount) {
+    if (this.shakeMult <= 0) return;
+    this.shake = Math.min(FX.shakeCap, this.shake + amount * this.shakeMult);
+  }
   addFlash(amount, color = '#ffffff') {
     if (amount > this.flash) { this.flash = amount; this.flashColor = color; }
   }
@@ -144,7 +148,7 @@ export class Vfx {
       this.particle(x, y, Math.cos(a) * s, Math.sin(a) * s - 60, rand(0.5, 0.95),
         '#090909', rand(2, 4), { grav: 520, drag: 0.985, shape: 'rect', spin: rand(-14, 14) });
     }
-    this.addShake(4.5 * power);
+    this.addShake(2.2 * power);
     this.addFlash(0.16 * power, color);
   }
 
@@ -215,7 +219,7 @@ export class Vfx {
       this.particle(x, y, Math.cos(a) * rand(80, 200), Math.sin(a) * rand(80, 200),
         rand(0.3, 0.55), PALETTE.accent, rand(2, 4), { drag: 0.92, shape: 'rect', spin: rand(-12, 12) });
     }
-    this.addShake(2);
+    this.addShake(1.2);
   }
 
   death(e) {
@@ -231,12 +235,14 @@ export class Vfx {
     this.ring(e.x, e.y, 2, e.radius * (e.boss ? 6 : 2.6), e.boss ? 0.6 : 0.3, col, e.boss ? 5 : 2);
     if (e.boss) {
       this.ring(e.x, e.y, 2, e.radius * 9, 0.9, '#ffffff', 3);
-      this.addShake(16);
+      this.addShake(9);
       this.addFlash(0.5, '#ffffff');
       this.addChroma(9);
       this.addSlowmo(0.55);
     } else {
-      this.addShake(e.radius * 0.09);
+      // Petite secousse plafonnée : une mort isolée doit à peine se sentir,
+      // même avec des dizaines de kills par seconde en fin de partie.
+      this.addShake(Math.min(0.35, e.radius * 0.02));
     }
   }
 
@@ -248,7 +254,7 @@ export class Vfx {
       this.particle(x, y, Math.cos(a) * rand(90, 190), Math.sin(a) * rand(90, 190),
         rand(0.3, 0.55), color, rand(2, 4), { drag: 0.9 });
     }
-    this.addShake(4);
+    this.addShake(3);
   }
 
   towerSold(x, y) {

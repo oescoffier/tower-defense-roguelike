@@ -373,7 +373,7 @@ export const Weapons = {
     const endY = hits.length ? hits[hits.length - 1].py : ey;
     game.vfx.beam(t.px, t.py, endX, endY, crit ? 0.24 : 0.16, crit ? PALETTE.gold : '#ffffff', crit ? 4 : 2.4);
     game.vfx.muzzle(t.px + Math.cos(a) * 24, t.py + Math.sin(a) * 24, a, '#ffffff', 1.7);
-    game.vfx.addShake(crit ? 5 : 2.6);
+    game.vfx.addShake(crit ? 2.2 : 1.1);
     if (crit) game.vfx.addChroma(4);
     t.recoil = 1;
 
@@ -424,7 +424,7 @@ export const Weapons = {
     }
     game.vfx.muzzle(t.px, t.py - 8, -Math.PI / 2, PALETTE.gold, 1.3);
     game.vfx.smoke(t.px, t.py - 10, '#3a3a3a', 4);
-    game.vfx.addShake(2.2);
+    game.vfx.addShake(1);
     t.recoil = 1;
   },
 
@@ -467,7 +467,7 @@ export const Weapons = {
     }
 
     game.vfx.addFlash(0.05, PALETTE.tesla);
-    game.vfx.addShake(0.6);
+    game.vfx.addShake(0.35);
     t.recoil = 1;
   },
 
@@ -545,7 +545,7 @@ export const Weapons = {
     }
     game.vfx.muzzle(t.px, t.py, -Math.PI / 2, PALETTE.air, 1.2);
     game.vfx.smoke(t.px, t.py, '#4a4a4a', 3);
-    game.vfx.addShake(0.7);
+    game.vfx.addShake(0.4);
     t.recoil = 1;
   }
 };
@@ -561,7 +561,7 @@ export function chainReaction(game, enemy, depth = 0) {
 
   game.vfx.ring(enemy.x, enemy.y, 4, r * 1.3, 0.35, PALETTE.tesla, 4);
   game.vfx.addFlash(0.08, PALETTE.tesla);
-  game.vfx.addShake(Math.max(0.3, 1.1 - depth * 0.25));
+  game.vfx.addShake(Math.max(0.12, 0.55 - depth * 0.12));
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * TAU;
     game.vfx.lightning(enemy.x, enemy.y,
@@ -594,7 +594,7 @@ export function teslaStorm(game) {
   const damage = 60 + game.wave * 14;
   game.vfx.lightning(best.x, -40, best.x, best.y, '#ffffff', 0.3, 22);
   game.vfx.addFlash(0.28, PALETTE.tesla);
-  game.vfx.addShake(4);
+  game.vfx.addShake(2);
   explode(game, best.x, best.y, C * 1.8, damage, { mask: TARGET.BOTH, color: PALETTE.tesla, type: 'tesla', power: 1.2 });
   best.charged = Math.max(best.charged, 3);
   best.chargedDmg += damage * 0.4;

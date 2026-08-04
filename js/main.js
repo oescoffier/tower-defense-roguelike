@@ -116,7 +116,7 @@ const game = {
   onEnemyLeaked(e) {
     this.lives -= e.leak;
     this.baseHitFlash = 1;
-    this.vfx.addShake(9);
+    this.vfx.addShake(5);
     this.vfx.addFlash(0.3, PALETTE.danger);
     this.vfx.addChroma(6);
     const b = this.grid;
@@ -310,7 +310,7 @@ function step(dt) {
         game.enemies.push(e);
         if (e.boss) {
           game.vfx.ring(e.x, e.y, 6, 120, 0.7, PALETTE.danger, 5);
-          game.vfx.addShake(7);
+          game.vfx.addShake(4);
         }
       }
     }
@@ -537,7 +537,7 @@ function tryPlace() {
 function refusePlacement(x, y, reason) {
   game.vfx.floatText(game.grid.cx(x), game.grid.cy(y) - 18, reason, PALETTE.danger, 15, 1);
   game.vfx.ring(game.grid.cx(x), game.grid.cy(y), 4, GRID.cell, 0.3, PALETTE.danger, 3);
-  game.vfx.addShake(3);
+  game.vfx.addShake(1.5);
   const stage = $('#stage');
   A({ targets: stage, translateX: [-7, 7, -4, 4, 0], duration: 240, easing: 'easeOutQuad' });
 }
@@ -596,6 +596,14 @@ function bindGameInputs() {
   $('#btn-wave').addEventListener('click', startWave);
 
   $('#btn-pause').addEventListener('click', togglePause);
+
+  const chkShake = $('#chk-shake');
+  chkShake.checked = save.shakeEnabled;
+  game.vfx.shakeMult = save.shakeEnabled ? 1 : 0;
+  chkShake.addEventListener('change', () => {
+    save.setShakeEnabled(chkShake.checked);
+    game.vfx.shakeMult = chkShake.checked ? 1 : 0;
+  });
 
   $('#speed-btns').addEventListener('click', (ev) => {
     const b = ev.target.closest('button');

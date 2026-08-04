@@ -13,6 +13,8 @@ const N = 300;
 let fails = 0;
 const shapeCounts = {};
 const edgePairs = new Set();
+let minAirLength = Infinity, maxAirLength = -Infinity, sumAirLength = 0;
+const MIN_AIR_LENGTH = 500; // px — distance de vol minimale garantie
 
 for (let seed = 1; seed <= N; seed++) {
   let g;
@@ -46,6 +48,12 @@ for (let seed = 1; seed <= N; seed++) {
     if (![p0.x, p0.y, pEnd.x, pEnd.y].every(Number.isFinite)) {
       fails++; console.log(`[FAIL] seed ${seed}: points du chemin aérien non finis`);
     }
+    if (g.airLength < MIN_AIR_LENGTH) {
+      fails++; console.log(`[FAIL] seed ${seed}: chemin aérien trop court (${Math.round(g.airLength)}px < ${MIN_AIR_LENGTH}px)`);
+    }
+    minAirLength = Math.min(minAirLength, g.airLength);
+    maxAirLength = Math.max(maxAirLength, g.airLength);
+    sumAirLength += g.airLength;
   }
 
   // Pose de tours aléatoires : ne doit jamais planter, et si canPlace()
@@ -71,6 +79,7 @@ for (let seed = 1; seed <= N; seed++) {
 
 console.log(`Formes observées sur ${N} seeds :`, shapeCounts);
 console.log(`Paires de bords spawn→base observées : ${edgePairs.size} / 12 possibles`);
+console.log(`Longueur du chemin aérien — min ${Math.round(minAirLength)}px, max ${Math.round(maxAirLength)}px, moyenne ${Math.round(sumAirLength / N)}px`);
 if (Object.keys(shapeCounts).length < 4) {
   fails++;
   console.log(`[FAIL] Seulement ${Object.keys(shapeCounts).length}/4 formes observées sur ${N} seeds — une forme ne sort peut-être jamais.`);
