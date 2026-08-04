@@ -13,6 +13,7 @@ const DEFAULTS = () => ({
   totalKills: 0,
   totalMaterials: 0,
   lastRun: null,
+  onboardingSeen: false,
   settings: { speed: 1, shake: true }
 });
 
@@ -31,6 +32,9 @@ export class Save {
 
   get shakeEnabled() { return this.data.settings.shake !== false; }
   setShakeEnabled(v) { this.data.settings.shake = !!v; this.persist(); }
+
+  get onboardingSeen() { return !!this.data.onboardingSeen; }
+  markOnboardingSeen() { this.data.onboardingSeen = true; this.persist(); }
 
   load() {
     try {

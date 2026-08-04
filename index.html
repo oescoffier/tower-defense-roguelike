@@ -60,6 +60,9 @@
           <button class="btn btn-ghost btn-lg" id="btn-commander">
             <span>COMMANDANT</span><i class="btn-badge" id="commander-badge">AUCUN</i>
           </button>
+          <button class="btn btn-ghost btn-lg" id="btn-help">
+            <span>COMMENT JOUER</span>
+          </button>
         </div>
       </div>
 
@@ -187,6 +190,7 @@
             <button data-speed="3">×3</button>
           </div>
         </div>
+        <button class="btn btn-ghost btn-sm" id="btn-help-game">AIDE</button>
         <button class="btn btn-ghost btn-sm hud-quit" id="btn-quit">ABANDONNER</button>
       </header>
 
@@ -295,6 +299,48 @@
     </div>
   </section>
 
+</div>
+
+<!-- ============ MODALE D'AIDE ============ -->
+<div class="help-modal" id="help-modal" hidden>
+  <div class="help-backdrop" id="help-backdrop"></div>
+  <div class="help-panel panel shadow-accent">
+    <div class="help-head">
+      <h2>COMMENT JOUER</h2>
+      <button class="btn btn-ghost btn-sm" id="help-close">FERMER ✕</button>
+    </div>
+    <div class="help-body">
+      <section class="help-section">
+        <h3>OBJECTIF</h3>
+        <p>Empêche les ennemis d'atteindre ta base. Chaque ennemi qui passe retire de l'<b>INTÉGRITÉ</b> — à zéro, la partie s'arrête. Il n'y a pas de fin : le but est de tenir le plus de vagues possible.</p>
+      </section>
+      <section class="help-section">
+        <h3>POSER DES TOURS</h3>
+        <p>Choisis une tour dans la boutique (ou les touches <b>1</b> à <b>7</b>) puis clique une case libre. Chaque tour bloque le chemin : les ennemis au sol recalculent aussitôt leur trajet autour. Le <b>SAC DE SABLE</b> ne tire pas — il sert juste, et pas cher, à sculpter le chemin ennemi.</p>
+      </section>
+      <section class="help-section">
+        <h3>CIBLAGE SOL / AIR</h3>
+        <p>Chaque tour ne touche que certains types de cibles (<b style="color:var(--ok)">SOL</b>, <b style="color:var(--air)">AIR</b>, ou les deux). Sélectionne une tour posée et clique <b>CIBLAGE</b> pour changer sa priorité : premier, dernier, proche, solide ou faible.</p>
+      </section>
+      <section class="help-section">
+        <h3>ÉCONOMIE</h3>
+        <p>Chaque élimination rapporte des crédits, avec un bonus à la fin de chaque vague. Vends une tour pour récupérer une partie de son coût si tu veux réorganiser ta défense.</p>
+      </section>
+      <section class="help-section">
+        <h3>COMMANDANT</h3>
+        <p>Choisis un commandant depuis le menu avant de lancer une partie : une tour d'élite, unique par partie, bien plus forte qu'une tour classique. Elle monte en rang (jusqu'à 3 fois) à mesure que <b>toutes tes tours</b> éliminent des ennemis — ça la renforce elle, et renforce toute sa branche.</p>
+      </section>
+      <section class="help-section">
+        <h3>ARBRE DE COMPÉTENCES</h3>
+        <p>Chaque partie rapporte des <b>matériaux</b>, à dépenser entre deux parties pour débloquer des améliorations permanentes par branche de tour. Le bouton <b>ALÉATOIRE</b> en débloque un au hasard si tu ne veux pas chercher toi-même.</p>
+      </section>
+      <section class="help-section">
+        <h3>RACCOURCIS</h3>
+        <p><b>1-7</b> sélectionner une tour · <b>ESPACE</b> pause · <b>ÉCHAP</b> annuler la sélection ou la pose en cours</p>
+      </section>
+    </div>
+    <button class="btn btn-primary btn-block" id="help-got-it">COMPRIS</button>
+  </div>
 </div>
 
 <script type="module" src="js/main.js"></script>

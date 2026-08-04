@@ -670,6 +670,32 @@ function togglePause() {
 }
 
 // ============================================================
+//  Modale d'aide — affichée automatiquement au tout premier
+//  lancement, rouvrable à volonté depuis le menu ou en jeu.
+// ============================================================
+
+function openHelp() {
+  $('#help-modal').hidden = false;
+  if (game.state === STATE.GAME && !game.paused) togglePause();
+}
+
+function closeHelp() {
+  $('#help-modal').hidden = true;
+  save.markOnboardingSeen();
+}
+
+function bindHelpModal() {
+  $('#btn-help').addEventListener('click', openHelp);
+  $('#btn-help-game').addEventListener('click', openHelp);
+  $('#help-close').addEventListener('click', closeHelp);
+  $('#help-got-it').addEventListener('click', closeHelp);
+  $('#help-backdrop').addEventListener('click', closeHelp);
+  window.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !$('#help-modal').hidden) closeHelp();
+  });
+}
+
+// ============================================================
 //  Mise à l'échelle du plateau
 // ============================================================
 
@@ -849,6 +875,7 @@ function init() {
   bindMenuInputs();
   bindTreeInputs();
   bindCommanderInputs();
+  bindHelpModal();
 
   window.addEventListener('resize', () => {
     fitStage();
@@ -858,7 +885,8 @@ function init() {
   UI.renderMenu(save, tree.nodes.length - 1);
 
   UI.runBoot(() => {
-    UI.showScreen('screen-menu', { onSwap: () => { game.state = STATE.MENU; } });
+    UI.showScreen('screen-menu', { onSwap: () => { game.state = STATE.MENU; } })
+      .then(() => { if (!save.onboardingSeen) openHelp(); });
   });
 
   requestAnimationFrame(frame);
