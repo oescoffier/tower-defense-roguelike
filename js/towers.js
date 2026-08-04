@@ -224,6 +224,10 @@ export class Tower {
   onWaveStart(game) {
     this.firstShotOfWave = true;
     if (!game.mods['mg.deluge']) this.spin = 0;
+    // Les cratères "permanents" (mortar.scorched) ne le sont que pour la
+    // vague en cours, comme annoncé — sans ça ils s'accumulent sans fin
+    // sur toute la partie et deviennent injouablement forts.
+    if (this.archetype === 'mortar') this.craters.length = 0;
   }
 
   // ----------------------------------------------------------

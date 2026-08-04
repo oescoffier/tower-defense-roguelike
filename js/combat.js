@@ -408,9 +408,14 @@ export const Weapons = {
             pull: !!game.mods['mortar.implode'],
             power: 1.2
           });
-          const craterLife = game.mods['mortar.scorched'] ? 999 : FX.craterLife;
+          // "Permanents" veut dire "toute la vague", pas "pour le reste de la
+          // partie" : bornés à 60s (bien plus long qu'une vague normale) et
+          // nettoyés au démarrage de la vague suivante (Tower.onWaveStart),
+          // avec un nombre de cratères actifs plafonné pour éviter l'empilement.
+          const craterLife = game.mods['mortar.scorched'] ? 60 : FX.craterLife;
           g.vfx.crater(tx, ty, r * 0.7, craterLife);
           t.craters.push({ x: tx, y: ty, r: r * 0.7, until: g.time + craterLife });
+          if (t.craters.length > 8) t.craters.shift();
           const shr = Math.floor(game.mods['mortar.shrapnel'] || 0);
           for (let k = 0; k < shr; k++) {
             const a = rand(0, TAU);

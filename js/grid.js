@@ -49,24 +49,37 @@ export class Grid {
 
   // ----------------------------------------------------------
   //  Génération de la map
-  //  Le spawn et la base sont tirés sur deux bords différents (pas
-  //  toujours gauche→droite), puis une des formes d'obstacles ci-dessous
-  //  est choisie au hasard pour que chaque partie ait un tracé différent.
+  //  1. Une silhouette (this.shape) délimite la zone jouable : rectangle
+  //     complet, rond, carré, étoile, ou bande horizontale/verticale.
+  //  2. Le spawn et la base sont placés à l'opposé l'un de l'autre à
+  //     travers le centre de cette silhouette (obligatoire pour le sol).
+  //  3. Un motif d'obstacles (this.terrain) est généré à l'intérieur.
   // ----------------------------------------------------------
   generate(seed) {
     const rng = new Rng(seed);
     this.cells.fill(CELL.EMPTY);
 
+    this.shape = rng.pick(['full', 'circle', 'square', 'star', 'rect-h', 'rect-v']);
     this._placeSpawnAndBase(rng);
     this._pickAirEntry(rng);
     this.airBowSign = rng.bool() ? 1 : -1;
 
-    this.shape = rng.pick(['clusters', 'zigzag', 'chambers', 'pillars']);
-    switch (this.shape) {
+    this.terrain = rng.pick(['clusters', 'zigzag', 'chambers', 'pillars']);
+    switch (this.terrain) {
       case 'zigzag': this._genZigzag(rng); break;
       case 'chambers': this._genChambers(rng); break;
       case 'pillars': this._genPillars(rng); break;
       default: this._genClusters(rng); break;
+    }
+
+    // Découpe la silhouette : tout ce qui tombe hors de la forme devient
+    // roche, quel que soit ce que le motif d'obstacles y a posé.
+    if (this.shape !== 'full') {
+      for (let y = 0; y < this.rows; y++) {
+        for (let x = 0; x < this.cols; x++) {
+          if (!this._insideShape(x, y)) this.set(x, y, CELL.ROCK);
+        }
+      }
     }
 
     // On dégage l'entrée, la sortie et leurs abords.
@@ -82,33 +95,49 @@ export class Grid {
     this.set(this.spawn.x, this.spawn.y, CELL.SPAWN);
     this.set(this.base.x, this.base.y, CELL.BASE);
 
-    // On garantit qu'un chemin existe dès la génération.
+    // On garantit qu'un chemin existe dès la génération, sans jamais percer
+    // la silhouette : seules les roches DANS la forme peuvent être ouvertes.
     let guard = 0;
-    while (!this._reachable(null) && guard++ < 400) {
-      // On casse une roche au hasard (seedée) jusqu'à rouvrir un passage.
+    while (!this._reachable(null) && guard++ < 600) {
       const i = Math.floor(rng.next() * this.cells.length);
-      if (this.cells[i] === CELL.ROCK) this.cells[i] = CELL.EMPTY;
+      const x = i % this.cols, y = (i / this.cols) | 0;
+      if (this.cells[i] === CELL.ROCK && this._insideShape(x, y)) this.cells[i] = CELL.EMPTY;
     }
   }
 
-  /** Place le spawn et la base sur deux bords distincts, à une position aléatoire (jamais dans les coins). */
+  /**
+   * Place le spawn et la base à l'opposé l'un de l'autre à travers le
+   * centre de la silhouette : on tire une direction au hasard, chacun va
+   * jusqu'au bord de la forme dans un sens ou dans l'autre. Les terrestres
+   * doivent donc toujours traverser la carte de part en part.
+   */
   _placeSpawnAndBase(rng) {
-    const edges = [0, 1, 2, 3]; // gauche, droite, haut, bas
-    const spawnEdge = rng.pick(edges);
-    const baseEdge = rng.pick(edges.filter((e) => e !== spawnEdge));
+    const cx = (this.cols - 1) / 2, cy = (this.rows - 1) / 2;
+    const theta = rng.float(0, Math.PI * 2);
+    this.spawn = this._farthestInside(cx, cy, theta);
+    this.base = this._farthestInside(cx, cy, theta + Math.PI);
+    this.spawnEdge = this._approxEdge(this.spawn, cx, cy);
+    this.baseEdge = this._approxEdge(this.base, cx, cy);
+  }
 
-    const pointOnEdge = (edge) => {
-      const f = rng.float(0.18, 0.82);
-      if (edge === 0) return { x: 0, y: Math.round(f * (this.rows - 1)) };
-      if (edge === 1) return { x: this.cols - 1, y: Math.round(f * (this.rows - 1)) };
-      if (edge === 2) return { x: Math.round(f * (this.cols - 1)), y: 0 };
-      return { x: Math.round(f * (this.cols - 1)), y: this.rows - 1 };
-    };
+  /** Dernière case à l'intérieur de la silhouette en partant du centre, dans une direction donnée. */
+  _farthestInside(cx, cy, theta) {
+    const dx = Math.cos(theta), dy = Math.sin(theta);
+    let best = { x: Math.round(cx), y: Math.round(cy) };
+    const maxR = Math.hypot(this.cols, this.rows);
+    for (let r = 0.5; r <= maxR; r += 0.5) {
+      const x = Math.round(cx + dx * r), y = Math.round(cy + dy * r);
+      if (!this.inBounds(x, y) || !this._insideShape(x, y)) break;
+      best = { x, y };
+    }
+    return best;
+  }
 
-    this.spawnEdge = spawnEdge;
-    this.baseEdge = baseEdge;
-    this.spawn = pointOnEdge(spawnEdge);
-    this.base = pointOnEdge(baseEdge);
+  /** Bord de la grille le plus proche d'un point, pour l'orientation du chemin aérien. */
+  _approxEdge(pt, cx, cy) {
+    const dx = (pt.x - cx) / this.cols, dy = (pt.y - cy) / this.rows;
+    if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? 0 : 1;
+    return dy < 0 ? 2 : 3;
   }
 
   /** Vecteur unitaire pointant hors de la grille depuis un bord donné. */
@@ -117,6 +146,62 @@ export class Grid {
     if (edge === 1) return { x: 1, y: 0 };
     if (edge === 2) return { x: 0, y: -1 };
     return { x: 0, y: 1 };
+  }
+
+  /** Point (x,y) à l'intérieur de la silhouette de carte courante ? */
+  _insideShape(x, y) {
+    if (!this.shape || this.shape === 'full') return true;
+    const cols = this.cols, rows = this.rows;
+    const cx = (cols - 1) / 2, cy = (rows - 1) / 2;
+    switch (this.shape) {
+      case 'circle': {
+        const nx = (x - cx) / (cols / 2), ny = (y - cy) / (rows / 2);
+        return nx * nx + ny * ny <= 0.92 * 0.92;
+      }
+      case 'square': {
+        const half = (Math.min(cols, rows) - 2) / 2;
+        return Math.abs(x - cx) <= half && Math.abs(y - cy) <= half;
+      }
+      case 'rect-h': {
+        const half = Math.max(5, Math.round(rows * 0.55)) / 2;
+        return Math.abs(y - cy) <= half;
+      }
+      case 'rect-v': {
+        const half = Math.max(7, Math.round(cols * 0.4)) / 2;
+        return Math.abs(x - cx) <= half;
+      }
+      case 'star': {
+        const nx = (x - cx) / (cols / 2), ny = (y - cy) / (rows / 2);
+        return this._insideStar(nx, ny);
+      }
+      default:
+        return true;
+    }
+  }
+
+  /** Test d'appartenance à une étoile à 5 branches, en coordonnées normalisées (-1..1). */
+  _insideStar(nx, ny) {
+    const r = Math.hypot(nx, ny);
+    if (r < 1e-6) return true;
+    const points = 5;
+    const outerR = 1.0, innerR = 0.42;
+    const seg = Math.PI / points;
+    let a = Math.atan2(ny, nx) + Math.PI / 2; // une pointe vers le haut
+    a = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    const k = Math.floor(a / seg);
+    const t = (a - k * seg) / seg;
+    const rA = k % 2 === 0 ? outerR : innerR;
+    const rB = k % 2 === 0 ? innerR : outerR;
+    return r <= rA + (rB - rA) * t;
+  }
+
+  /** Case aléatoire à l'intérieur de la silhouette (retombe sur le centre si pas de chance). */
+  _randomPointInShape(rng, tries = 25) {
+    for (let i = 0; i < tries; i++) {
+      const x = rng.int(1, this.cols - 2), y = rng.int(1, this.rows - 2);
+      if (this._insideShape(x, y)) return { x, y };
+    }
+    return { x: Math.round((this.cols - 1) / 2), y: Math.round((this.rows - 1) / 2) };
   }
 
   /** Point en pixels sur un bord donné, à la fraction f (0..1) de sa longueur. */
@@ -208,7 +293,7 @@ export class Grid {
 
     const rooms = [{ x: this.spawn.x, y: this.spawn.y }];
     const n = rng.int(3, 5);
-    for (let i = 0; i < n; i++) rooms.push({ x: rng.int(2, this.cols - 3), y: rng.int(1, this.rows - 2) });
+    for (let i = 0; i < n; i++) rooms.push(this._randomPointInShape(rng));
     rooms.push({ x: this.base.x, y: this.base.y });
 
     const carveRoom = (cx, cy) => {

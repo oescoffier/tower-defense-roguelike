@@ -6,6 +6,7 @@
   "scripts": {
     "test:commanders": "node tests/commanders.test.mjs",
     "test:grid": "node tests/grid.test.mjs",
-    "test": "npm run test:commanders && npm run test:grid"
+    "test:craters": "node tests/craters.test.mjs",
+    "test": "npm run test:commanders && npm run test:grid && npm run test:craters"
   }
 }

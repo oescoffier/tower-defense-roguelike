@@ -293,8 +293,8 @@ export const COMMANDERS = {
   cmdr_scorchedearth: {
     id: 'cmdr_scorchedearth', name: 'TERRE BRÛLÉE', archetype: 'mortar', cost: 360, accent: '#c96f2e',
     targets: TARGET.GROUND, damage: 180, rate: 1.3, range: 7, splash: 2.6, arcTime: 0.55,
-    desc: 'Ne laisse derrière lui que des ruines fumantes. Les cratères de tous les mortiers deviennent permanents et projettent 10 éclats à chaque explosion.',
-    grants: { 'mortar.scorched': 1, 'mortar.shrapnel': 10 },
+    desc: 'Ne laisse derrière lui que des ruines fumantes. Les cratères de tous les mortiers durent toute la vague et projettent 5 éclats à chaque explosion.',
+    grants: { 'mortar.scorched': 1, 'mortar.shrapnel': 5 },
     upgrades: []
   },
   cmdr_earthquake: {
