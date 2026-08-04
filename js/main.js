@@ -661,11 +661,28 @@ function buyNode(n) {
   });
 }
 
+/** Déverrouille au hasard un nœud accessible (relié à un nœud déjà acquis) et abordable. */
+function randomUnlock() {
+  if (!treeView) return;
+  const candidates = tree.nodes.filter((n) =>
+    !n.hub && !save.unlocked.has(n.id) && treeView.isAvailable(n) && save.materials >= n.cost);
+  if (!candidates.length) {
+    A({ targets: '#btn-random-node', translateX: [-8, 8, -5, 5, 0], duration: 260, easing: 'easeOutQuad' });
+    A({ targets: '#tree-materials', color: [PALETTE.danger, PALETTE.gold], duration: 600 });
+    UI.toast('<b>AUCUN NŒUD ACCESSIBLE</b><br>Rien d\'abordable pour l\'instant', 'bad', 2000);
+    return;
+  }
+  const n = candidates[Math.floor(Math.random() * candidates.length)];
+  buyNode(n);
+  treeView.focusNode(n);
+}
+
 function bindTreeInputs() {
   $('#tree-back').addEventListener('click', () => {
     UI.renderMenu(save, tree.nodes.length - 1);
     UI.showScreen('screen-menu', { onSwap: () => { game.state = STATE.MENU; } });
   });
+  $('#btn-random-node').addEventListener('click', randomUnlock);
   $('#detail-buy').addEventListener('click', () => {
     if (treeView && treeView.selected) buyNode(treeView.selected);
   });
