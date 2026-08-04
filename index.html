@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>NULL SECTOR — Tower Defense Roguelike</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23090909'/%3E%3Crect x='6' y='6' width='20' height='20' fill='none' stroke='%230d67ff' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23f0d24b'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+</head>
+<body>
+
+<!-- ============ FOND GLOBAL ============ -->
+<div class="bg-layer">
+  <div class="bg-grid"></div>
+  <div class="bg-beams"></div>
+  <div class="bg-scan"></div>
+  <div class="bg-vignette"></div>
+</div>
+
+<!-- ============ TRANSITION (volets) ============ -->
+<div id="wipe" class="wipe" aria-hidden="true">
+  <span></span><span></span><span></span><span></span><span></span><span></span>
+</div>
+
+<div id="app">
+
+  <!-- ==================== BOOT ==================== -->
+  <section id="screen-boot" class="screen active">
+    <div class="boot-inner">
+      <div class="boot-tag">SYSTÈME DE DÉFENSE ORBITALE // v1.0</div>
+      <h1 class="boot-title" id="boot-title">NULL SECTOR</h1>
+      <div class="boot-bar"><i></i></div>
+      <div class="boot-log" id="boot-log"></div>
+    </div>
+  </section>
+
+  <!-- ==================== MENU ==================== -->
+  <section id="screen-menu" class="screen">
+    <div class="menu-grid">
+
+      <div class="menu-hero panel shadow-accent">
+        <div class="kicker">TOWER DEFENSE ROGUELIKE</div>
+        <h1 class="title-xl" id="menu-title">NULL SECTOR</h1>
+        <p class="lede">
+          Le secteur tombe vague après vague. Bâtis ton réseau de tourelles sur la grille,
+          plie le chemin ennemi à ta volonté, encaisse l'assaut aérien.
+          <b>Chaque partie est infinie</b> — tu ne gagnes pas, tu tiens plus longtemps.
+        </p>
+        <div class="menu-actions">
+          <button class="btn btn-primary btn-lg" id="btn-play">
+            <span>LANCER UNE PARTIE</span><i class="btn-arrow">▶</i>
+          </button>
+          <button class="btn btn-ghost btn-lg" id="btn-tree">
+            <span>ARBRE DE COMPÉTENCES</span><i class="btn-badge" id="tree-badge">0</i>
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-side">
+        <div class="panel stat-card shadow-gold">
+          <div class="stat-card-head">MATÉRIAUX</div>
+          <div class="stat-card-value gold" id="menu-materials">0</div>
+          <div class="stat-card-foot">dépensés dans l'arbre entre deux parties</div>
+        </div>
+
+        <div class="panel meta-list">
+          <div class="meta-row"><span>MEILLEURE VAGUE</span><b id="menu-best">—</b></div>
+          <div class="meta-row"><span>PARTIES JOUÉES</span><b id="menu-runs">0</b></div>
+          <div class="meta-row"><span>ÉLIMINATIONS</span><b id="menu-kills">0</b></div>
+          <div class="meta-row"><span>NŒUDS DÉBLOQUÉS</span><b id="menu-nodes">0 / 2156</b></div>
+        </div>
+
+        <div class="panel legend">
+          <div class="legend-head">TOURS DISPONIBLES</div>
+          <div id="menu-towers" class="legend-body"></div>
+        </div>
+
+        <div class="panel danger-panel">
+          <button class="btn btn-danger btn-sm" id="btn-reset">RÉINITIALISER LA PROGRESSION</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ==================== ARBRE ==================== -->
+  <section id="screen-tree" class="screen">
+    <div class="tree-layout">
+
+      <header class="tree-top panel">
+        <button class="btn btn-ghost btn-sm" id="tree-back">◀ RETOUR</button>
+        <div class="tree-title">ARBRE DE COMPÉTENCES</div>
+        <div class="tree-mats">
+          <span class="label">MATÉRIAUX</span>
+          <b class="gold" id="tree-materials">0</b>
+        </div>
+      </header>
+
+      <nav class="tree-branches" id="tree-branches"></nav>
+
+      <div class="tree-stage">
+        <canvas id="tree-canvas"></canvas>
+        <div class="tree-hint">MOLETTE : ZOOM · GLISSER : NAVIGUER · CLIC : SÉLECTIONNER · DOUBLE-CLIC : DÉBLOQUER</div>
+        <div class="tree-counter" id="tree-counter">0 / 2156</div>
+      </div>
+
+      <aside class="tree-detail panel" id="tree-detail">
+        <div class="detail-empty" id="detail-empty">
+          <div class="detail-empty-icon">✦</div>
+          <p>Sélectionne un nœud pour voir son effet.</p>
+          <p class="muted">2156 nœuds — 7 branches de 308.</p>
+        </div>
+        <div class="detail-body" id="detail-body" hidden>
+          <div class="detail-type" id="detail-type">MINEUR</div>
+          <h3 class="detail-name" id="detail-name">—</h3>
+          <div class="detail-branch" id="detail-branch">—</div>
+          <p class="detail-desc" id="detail-desc">—</p>
+          <div class="detail-cost">
+            <span>COÛT</span><b id="detail-cost">0</b>
+          </div>
+          <button class="btn btn-primary btn-block" id="detail-buy">DÉBLOQUER</button>
+          <div class="detail-status" id="detail-status"></div>
+        </div>
+      </aside>
+
+    </div>
+  </section>
+
+  <!-- ==================== JEU ==================== -->
+  <section id="screen-game" class="screen">
+    <div class="game-layout">
+
+      <header class="hud-top">
+        <div class="hud-box" id="hud-wave-box">
+          <span class="hud-label">VAGUE</span>
+          <b class="hud-value" id="hud-wave">0</b>
+        </div>
+        <div class="hud-box" id="hud-lives-box">
+          <span class="hud-label">INTÉGRITÉ</span>
+          <b class="hud-value danger" id="hud-lives">20</b>
+        </div>
+        <div class="hud-box" id="hud-gold-box">
+          <span class="hud-label">CRÉDITS</span>
+          <b class="hud-value gold" id="hud-gold">250</b>
+        </div>
+        <div class="hud-box">
+          <span class="hud-label">ENNEMIS</span>
+          <b class="hud-value" id="hud-enemies">0</b>
+        </div>
+        <div class="hud-box">
+          <span class="hud-label">ÉLIMINÉS</span>
+          <b class="hud-value" id="hud-kills">0</b>
+        </div>
+        <div class="hud-box hud-speed">
+          <span class="hud-label">VITESSE</span>
+          <div class="speed-btns" id="speed-btns">
+            <button data-speed="1" class="on">×1</button>
+            <button data-speed="2">×2</button>
+            <button data-speed="3">×3</button>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm hud-quit" id="btn-quit">ABANDONNER</button>
+      </header>
+
+      <div class="game-main">
+
+        <div class="stage-wrap">
+          <div class="stage" id="stage">
+            <canvas id="game-canvas"></canvas>
+
+            <div class="wave-banner" id="wave-banner">
+              <div class="wave-banner-inner">
+                <span class="wb-label">VAGUE</span>
+                <span class="wb-num" id="wb-num">1</span>
+                <span class="wb-sub" id="wb-sub"></span>
+              </div>
+            </div>
+
+            <div class="toast-stack" id="toast-stack"></div>
+
+            <div class="prep-badge" id="prep-badge">
+              <span>PRÉPARATION</span><b id="prep-time">12</b>
+            </div>
+
+            <div class="pause-overlay" id="pause-overlay" hidden>
+              <div class="pause-text">PAUSE</div>
+              <div class="pause-sub">ESPACE pour reprendre</div>
+            </div>
+          </div>
+
+          <div class="stage-bottom">
+            <button class="btn btn-primary btn-wave" id="btn-wave">
+              <span id="btn-wave-label">LANCER LA VAGUE 1</span>
+            </button>
+            <div class="wave-progress"><i id="wave-progress-bar"></i></div>
+            <button class="btn btn-ghost btn-sm" id="btn-pause">PAUSE</button>
+          </div>
+        </div>
+
+        <aside class="game-side">
+
+          <div class="panel shop">
+            <div class="panel-head">CONSTRUCTION</div>
+            <div class="shop-list" id="shop-list"></div>
+            <div class="shop-hint" id="shop-hint">Clique une tour puis une case libre. <b>ÉCHAP</b> pour annuler.</div>
+          </div>
+
+          <div class="panel tower-panel" id="tower-panel" hidden>
+            <div class="panel-head" id="tp-name">—</div>
+            <div class="tp-stats" id="tp-stats"></div>
+            <div class="tp-target">
+              <span>CIBLAGE</span>
+              <button class="btn btn-ghost btn-xs" id="tp-priority">PREMIER</button>
+            </div>
+            <div class="tp-actions">
+              <button class="btn btn-primary btn-sm" id="tp-upgrade">AMÉLIORER</button>
+              <button class="btn btn-danger btn-sm" id="tp-sell">VENDRE</button>
+            </div>
+          </div>
+
+          <div class="panel wave-info">
+            <div class="panel-head">VAGUE ENTRANTE</div>
+            <div class="wave-comp" id="wave-comp"></div>
+          </div>
+
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== FIN DE PARTIE ==================== -->
+  <section id="screen-over" class="screen">
+    <div class="over-wrap">
+      <div class="panel over-card shadow-danger">
+        <div class="over-kicker" id="over-kicker">SECTEUR PERDU</div>
+        <h2 class="over-title">PARTIE TERMINÉE</h2>
+
+        <div class="over-wave">
+          <span>VAGUE ATTEINTE</span>
+          <b id="over-wave">0</b>
+        </div>
+
+        <div class="over-stats">
+          <div class="over-stat"><span>ÉLIMINATIONS</span><b id="over-kills">0</b></div>
+          <div class="over-stat"><span>TOURS BÂTIES</span><b id="over-towers">0</b></div>
+          <div class="over-stat"><span>DURÉE</span><b id="over-time">0:00</b></div>
+          <div class="over-stat"><span>MEILLEURE VAGUE</span><b id="over-best">0</b></div>
+        </div>
+
+        <div class="over-mats">
+          <span class="over-mats-label">MATÉRIAUX RÉCOLTÉS</span>
+          <b class="gold" id="over-materials">0</b>
+          <small id="over-nodes-est">≈ 0 nœuds</small>
+        </div>
+
+        <div class="over-actions">
+          <button class="btn btn-primary btn-lg" id="over-again">REJOUER</button>
+          <button class="btn btn-ghost btn-lg" id="over-tree">DÉPENSER DANS L'ARBRE</button>
+          <button class="btn btn-ghost btn-sm" id="over-menu">MENU</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
