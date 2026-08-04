@@ -1,0 +1,9 @@
+{
+  "name": "null-sector",
+  "private": true,
+  "type": "module",
+  "description": "NULL SECTOR — tower defense roguelike (static site, no build step).",
+  "scripts": {
+    "test:commanders": "node tests/commanders.test.mjs"
+  }
+}

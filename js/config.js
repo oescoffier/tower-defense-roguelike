@@ -234,21 +234,21 @@ export const TOWER_ORDER = ['mg', 'sniper', 'mortar', 'tesla', 'flame', 'aa', 's
 export const COMMANDERS = {
   cmdr_fury: {
     id: 'cmdr_fury', name: 'FURIE', archetype: 'mg', cost: 300, accent: '#ff6a3d',
-    targets: TARGET.BOTH, damage: 32, rate: 16, range: 4.6, spinMax: 3.4, spinUp: 0.5, spinDown: 0.3,
+    targets: TARGET.BOTH, damage: 32, rate: 16, range: 4.6, projSpeed: 36, spinMax: 3.4, spinUp: 0.5, spinDown: 0.3,
     desc: 'Rafale ininterrompue qui monte en régime presque instantanément. Accorde DÉLUGE à toutes les mitrailleuses : leur régime ne retombe plus entre deux vagues.',
     grants: { 'mg.spinMax': 0.5, 'mg.deluge': 1 },
     upgrades: []
   },
   cmdr_leadstorm: {
     id: 'cmdr_leadstorm', name: 'TEMPÊTE DE PLOMB', archetype: 'mg', cost: 300, accent: '#ffae42',
-    targets: TARGET.BOTH, damage: 24, rate: 22, range: 4.2, spinMax: 2.6, spinUp: 0.8, spinDown: 0.6,
+    targets: TARGET.BOTH, damage: 24, rate: 22, range: 4.2, projSpeed: 42, spinMax: 2.6, spinUp: 0.8, spinDown: 0.6,
     desc: 'Un déluge de balles qui ricochent d\'une cible à l\'autre. Toutes les mitrailleuses gagnent +40% de cadence et +35% de chance de ricochet.',
     grants: { 'mg.rate': 0.4, 'mg.ricochet': 0.35 },
     upgrades: []
   },
   cmdr_bastion: {
     id: 'cmdr_bastion', name: 'BASTION', archetype: 'mg', cost: 320, accent: '#c94b4b',
-    targets: TARGET.BOTH, damage: 48, rate: 12, range: 4.0, spinMax: 2.0, spinUp: 1.0, spinDown: 1.0,
+    targets: TARGET.BOTH, damage: 48, rate: 12, range: 4.0, projSpeed: 30, spinMax: 2.0, spinUp: 1.0, spinDown: 1.0,
     desc: 'Mur de plomb qui écrase tout ce qui s\'approche. Toutes les mitrailleuses ignorent 10 points d\'armure et ralentissent leurs cibles de 20%.',
     grants: { 'mg.wall': 1, 'mg.armorPen': 10, 'mg.slow': 0.2 },
     upgrades: []
