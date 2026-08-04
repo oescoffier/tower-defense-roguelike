@@ -4,6 +4,8 @@
   "type": "module",
   "description": "NULL SECTOR — tower defense roguelike (static site, no build step).",
   "scripts": {
-    "test:commanders": "node tests/commanders.test.mjs"
+    "test:commanders": "node tests/commanders.test.mjs",
+    "test:grid": "node tests/grid.test.mjs",
+    "test": "npm run test:commanders && npm run test:grid"
   }
 }

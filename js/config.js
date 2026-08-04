@@ -388,6 +388,14 @@ export const COMMANDER_ORDER = [
   'cmdr_totalflak', 'cmdr_sentinel', 'cmdr_interceptor'
 ];
 
+// Paliers d'éliminations (toutes tours confondues, depuis la pose du
+// commandant) nécessaires pour passer au rang suivant. De gros paliers,
+// volontairement peu nombreux : chaque rang doit se mériter sur la durée.
+// Chaque rang applique le tier d'amélioration correspondant de l'archétype
+// (mêmes multiplicateurs que TOWERS[archetype].upgrades) à la fois à la
+// tour elle-même et à la capacité de commandement qu'elle accorde.
+export const COMMANDER_RANK_KILLS = [60, 180, 420];
+
 // ============================================================
 //  ENNEMIS
 // ============================================================

@@ -3,7 +3,7 @@
 // ============================================================
 
 import {
-  STATE, GRID, ECONOMY, WAVE, TOWERS, TOWER_ORDER, COMMANDERS, PALETTE, TARGET,
+  STATE, GRID, ECONOMY, WAVE, TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_RANK_KILLS, PALETTE, TARGET,
   materialsForWave
 } from './config.js';
 import { Grid } from './grid.js';
@@ -109,6 +109,8 @@ const game = {
     }
 
     if (e.boss) UI.toast(`<b>${e.name} ABATTU</b><br>+${gain} crédits`, 'good', 3200);
+
+    checkCommanderRankUp();
   },
 
   onEnemyLeaked(e) {
@@ -429,14 +431,44 @@ function hasCommanderDeployed() {
 /**
  * Applique (sign=1) ou retire (sign=-1) la capacité de commandement d'un
  * commandant sur toutes les tours de la partie, en réutilisant les mêmes
- * clés de modificateur que les notables/clés de voûte de l'arbre.
+ * clés de modificateur que les notables/clés de voûte de l'arbre. La
+ * puissance de la capacité suit le rang courant du commandant (rankMult).
  */
 function applyCommanderGrants(tower, sign) {
+  const mult = tower.rankMult || 1;
   for (const [key, value] of Object.entries(tower.def.grants || {})) {
-    game.mods[key] = (game.mods[key] || 0) + value * sign;
+    game.mods[key] = (game.mods[key] || 0) + value * mult * sign;
   }
   game.chainBlastMult = 0.6 + (game.mods['tesla.chainBlast'] || 0);
   for (const t of game.towers) t.recompute(game.mods);
+}
+
+/**
+ * Un commandant monte en rang (gros palier, jusqu'à 3) à mesure que
+ * N'IMPORTE QUELLE tour élimine des ennemis pendant qu'il est sur le
+ * terrain. Chaque rang le rend plus fort ET renforce sa capacité de
+ * commandement d'autant (même multiplicateur pour les deux).
+ */
+function checkCommanderRankUp() {
+  const cmdr = game.towers.find((t) => t.isCommander);
+  if (!cmdr || cmdr.level >= COMMANDER_RANK_KILLS.length) return;
+  const earned = game.kills - cmdr.killsAtPlacement;
+  if (earned < COMMANDER_RANK_KILLS[cmdr.level]) return;
+
+  applyCommanderGrants(cmdr, -1); // retire la capacité à l'ancienne puissance
+  cmdr.level++;
+  cmdr.rankMult = 1 + cmdr.level * 0.5;
+  cmdr.recompute(game.mods);
+  applyCommanderGrants(cmdr, 1); // la réapplique, plus forte
+
+  cmdr.placeAnim = 0;
+  game.vfx.towerPlaced(cmdr.px, cmdr.py, PALETTE.gold);
+  game.vfx.floatText(cmdr.px, cmdr.py - 32, `RANG ${cmdr.level}`, PALETTE.gold, 20, 1.4);
+  UI.toast(
+    `<b>${cmdr.def.name} MONTE EN RANG</b><br>Rang ${cmdr.level}/${COMMANDER_RANK_KILLS.length} — lui et sa capacité sont renforcés`,
+    'good', 3400
+  );
+  UI.refreshHud(game);
 }
 
 function updatePlaceValidity() {
@@ -490,6 +522,8 @@ function tryPlace() {
   for (const e of game.enemies) e.repath();
 
   if (tower.isCommander) {
+    tower.killsAtPlacement = game.kills;
+    tower.rankMult = 1;
     applyCommanderGrants(tower, 1);
     UI.toast(`<b>COMMANDANT DÉPLOYÉ</b><br>${tower.def.name} prend le terrain`, 'good', 3200);
   }

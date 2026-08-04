@@ -1,14 +1,18 @@
 // ============================================================
 //  Test headless (Node, sans DOM) : vérifie que les 20 commandants
-//  déclenchent effectivement leur tir et infligent des dégâts, et que
-//  les clés de leur capacité de commandement sont bien lues quelque
-//  part dans le code (pas de faute de frappe silencieuse).
+//  déclenchent effectivement leur tir et infligent des dégâts, que leur
+//  capacité de commandement s'applique correctement aux autres tours,
+//  qu'ils montent bien en rang à mesure que les tours éliminent des
+//  ennemis (gros paliers, buff cumulé sur la tour ET sur sa capacité),
+//  et que les clés de "grants" sont bien lues quelque part dans le code
+//  (pas de faute de frappe silencieuse). Couvre aussi les 7 tours de
+//  base en régression.
 // ============================================================
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { GRID, TARGET, TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_ORDER } from '../js/config.js';
+import { GRID, TARGET, TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_ORDER, COMMANDER_RANK_KILLS } from '../js/config.js';
 import { Grid } from '../js/grid.js';
 import { Enemy } from '../js/enemies.js';
 import { Tower, getTowerDef } from '../js/towers.js';
@@ -102,6 +106,67 @@ function grantPropagationTest(id) {
   return problems;
 }
 
+/**
+ * Reproduit checkCommanderRankUp() de main.js : fait franchir au commandant
+ * les COMMANDER_RANK_KILLS.length paliers d'élimination, un par un, et
+ * vérifie à chaque rang que (a) le niveau/rankMult montent bien, (b) les
+ * stats de la tour progressent (elle utilise les tiers de son archétype),
+ * (c) sa capacité de commandement est ré-appliquée à la puissance du
+ * nouveau rang sans jamais planter, pour les 20 commandants.
+ */
+function rankProgressionTest(id) {
+  const def = COMMANDERS[id];
+  const game = makeGame();
+  const sx = game.grid.spawn.x, sy = game.grid.spawn.y;
+
+  const cmdr = new Tower(id, sx, sy, game);
+  game.towers.push(cmdr);
+  cmdr.killsAtPlacement = 0;
+  cmdr.rankMult = 1;
+  for (const [key, value] of Object.entries(def.grants || {})) {
+    game.mods[key] = (game.mods[key] || 0) + value;
+  }
+  for (const t of game.towers) t.recompute(game.mods);
+
+  const problems = [];
+  let prevDamage = cmdr.stats.damage;
+
+  for (let tier = 0; tier < COMMANDER_RANK_KILLS.length; tier++) {
+    game.kills = COMMANDER_RANK_KILLS[tier]; // franchit le palier
+
+    // --- reproduit exactement checkCommanderRankUp() ---
+    const applyGrants = (sign) => {
+      const mult = cmdr.rankMult || 1;
+      for (const [key, value] of Object.entries(cmdr.def.grants || {})) {
+        game.mods[key] = (game.mods[key] || 0) + value * mult * sign;
+      }
+      for (const t of game.towers) t.recompute(game.mods);
+    };
+    applyGrants(-1);
+    cmdr.level++;
+    cmdr.rankMult = 1 + cmdr.level * 0.5;
+    cmdr.recompute(game.mods);
+    applyGrants(1);
+    // ---------------------------------------------------
+
+    if (cmdr.level !== tier + 1) {
+      problems.push(`${id}: niveau ${cmdr.level} après le palier ${tier + 1}, attendu ${tier + 1}`);
+    }
+    if (!(cmdr.stats.damage > prevDamage)) {
+      problems.push(`${id}: les dégâts n'ont pas augmenté au rang ${cmdr.level} (${prevDamage} -> ${cmdr.stats.damage})`);
+    }
+    for (const [key, value] of Object.entries(def.grants || {})) {
+      const expected = value * cmdr.rankMult;
+      const got = game.mods[key] || 0;
+      if (Math.abs(got - expected) > 1e-9) {
+        problems.push(`${id}: au rang ${cmdr.level}, game.mods['${key}'] = ${got}, attendu ${expected} (valeur de base × rankMult ${cmdr.rankMult})`);
+      }
+    }
+    prevDamage = cmdr.stats.damage;
+  }
+  return { problems, finalDamage: cmdr.stats.damage, finalLevel: cmdr.level };
+}
+
 function grantsKeyAudit() {
   // Toutes les clés lues via `mods['x.y']`/`m(mods,'x.y')`, littérales ou
   // dynamiques (`${id}.suffixe`), dans tout le moteur.
@@ -181,6 +246,25 @@ for (const id of COMMANDER_ORDER) {
     for (const p of problems) console.log(`[FAIL] ${p}`);
   } else {
     console.log(`[PASS] ${COMMANDERS[id].name.padEnd(20)} — capacité appliquée sans erreur, tour alliée recalculée`);
+  }
+}
+
+console.log(`\n=== MONTÉE EN RANG PAR ÉLIMINATIONS (paliers : ${COMMANDER_RANK_KILLS.join(' / ')}) ===\n`);
+for (const id of COMMANDER_ORDER) {
+  let r;
+  try {
+    r = rankProgressionTest(id);
+  } catch (err) {
+    fails++;
+    console.log(`[ERREUR] ${id} — ${err.message}`);
+    console.log(err.stack.split('\n').slice(0, 4).join('\n'));
+    continue;
+  }
+  if (r.problems.length) {
+    fails += r.problems.length;
+    for (const p of r.problems) console.log(`[FAIL] ${p}`);
+  } else {
+    console.log(`[PASS] ${COMMANDERS[id].name.padEnd(20)} — rang ${r.finalLevel}/${COMMANDER_RANK_KILLS.length} atteint, dégâts finaux ×${(r.finalDamage / COMMANDERS[id].damage).toFixed(2)}`);
   }
 }
 

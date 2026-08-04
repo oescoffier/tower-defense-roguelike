@@ -65,12 +65,16 @@ export class Tower {
   recompute(mods) {
     const d = this.def;
     const id = this.archetype;
+    // Un commandant ne s'améliore pas à l'or (upgrades: []) : ses paliers de
+    // rang (gagnés aux éliminations) reprennent directement les tiers de
+    // l'archétype qu'il incarne, pour rester cohérent avec l'équilibrage existant.
+    const upgradeSource = this.isCommander ? TOWERS[this.archetype].upgrades : d.upgrades;
 
-    // Multiplicateurs cumulés des améliorations achetées
+    // Multiplicateurs cumulés des améliorations (achetées, ou de rang pour un commandant)
     const up = { damage: 1, rate: 1, range: 1, splash: 1, burnDps: 1, burnDur: 1, cone: 1, turnRate: 1, flakSplash: 1, bounceRange: 1 };
     const add = { pierce: 0, bounces: 0, missiles: 0, critChance: 0, chainBlast: 0, burnStacks: 0 };
     for (let i = 0; i < this.level; i++) {
-      const u = d.upgrades[i];
+      const u = upgradeSource[i];
       for (const k of Object.keys(u)) {
         if (k === 'cost') continue;
         if (up[k] !== undefined) up[k] *= u[k];
@@ -168,8 +172,8 @@ export class Tower {
     this.priority = PRIORITY[(i + dir + PRIORITY.length) % PRIORITY.length];
   }
 
-  /** Niveau utilisé pour la taille du rendu : un commandant se dessine toujours en format maximal. */
-  get visualLevel() { return this.isCommander ? 4 : this.level; }
+  /** Niveau utilisé pour la taille du rendu : un commandant part déjà imposant, et grossit encore à chaque rang. */
+  get visualLevel() { return this.isCommander ? 4 + this.level : this.level; }
 
   // ----------------------------------------------------------
   update(dt, game) {
@@ -293,6 +297,23 @@ export class Tower {
       ctx.strokeStyle = '#090909';
       ctx.lineWidth = 1.2;
       ctx.stroke();
+
+      // Pips de rang : paliers gagnés aux éliminations depuis la pose (0..3)
+      if (lvl > 0) {
+        const pr = 2.6, pgap = 3;
+        const totalW = lvl * pr * 2 + (lvl - 1) * pgap;
+        const py = cy - 13;
+        for (let i = 0; i < lvl; i++) {
+          const px = -totalW / 2 + i * (pr * 2 + pgap) + pr;
+          ctx.fillStyle = PALETTE.gold;
+          ctx.beginPath();
+          ctx.arc(px, py, pr, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = '#090909';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
     } else if (lvl > 0) {
       // Chevrons de rang — remplacent les anciennes petites barres, dorés au niveau max
       const cw = 8, gap = 2.5;

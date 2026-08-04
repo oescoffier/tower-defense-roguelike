@@ -14,8 +14,11 @@ export class Grid {
     this.cells = new Uint8Array(this.cols * this.rows);
     this.towers = new Array(this.cols * this.rows).fill(null);
 
+    // Le spawn et la base sont placés par generate() (bord + position aléatoires).
     this.spawn = { x: 0, y: (this.rows >> 1) };
     this.base = { x: this.cols - 1, y: (this.rows >> 1) };
+    this.spawnEdge = 0;
+    this.baseEdge = 1;
 
     this.generate(seed);
 
@@ -44,32 +47,23 @@ export class Grid {
 
   // ----------------------------------------------------------
   //  Génération de la map
+  //  Le spawn et la base sont tirés sur deux bords différents (pas
+  //  toujours gauche→droite), puis une des formes d'obstacles ci-dessous
+  //  est choisie au hasard pour que chaque partie ait un tracé différent.
   // ----------------------------------------------------------
   generate(seed) {
     const rng = new Rng(seed);
     this.cells.fill(CELL.EMPTY);
 
-    // Amas rocheux : on sème des graines et on les fait croître.
-    const clusters = 11;
-    for (let c = 0; c < clusters; c++) {
-      let x = rng.int(2, this.cols - 3);
-      let y = rng.int(1, this.rows - 2);
-      const size = rng.int(2, 6);
-      for (let s = 0; s < size; s++) {
-        if (this.inBounds(x, y)) this.set(x, y, CELL.ROCK);
-        const d = rng.int(0, 3);
-        x += [1, -1, 0, 0][d];
-        y += [0, 0, 1, -1][d];
-        x = Math.max(1, Math.min(this.cols - 2, x));
-        y = Math.max(0, Math.min(this.rows - 1, y));
-      }
-    }
+    this._placeSpawnAndBase(rng);
+    this.airBowSign = rng.bool() ? 1 : -1;
 
-    // Colonnes décoratives régulières pour structurer le labyrinthe.
-    for (let x = 4; x < this.cols - 4; x += 5) {
-      const y = rng.int(1, this.rows - 2);
-      this.set(x, y, CELL.ROCK);
-      if (rng.bool(0.5)) this.set(x, Math.min(this.rows - 1, y + 1), CELL.ROCK);
+    this.shape = rng.pick(['clusters', 'zigzag', 'chambers', 'pillars']);
+    switch (this.shape) {
+      case 'zigzag': this._genZigzag(rng); break;
+      case 'chambers': this._genChambers(rng); break;
+      case 'pillars': this._genPillars(rng); break;
+      default: this._genClusters(rng); break;
     }
 
     // On dégage l'entrée, la sortie et leurs abords.
@@ -87,10 +81,147 @@ export class Grid {
 
     // On garantit qu'un chemin existe dès la génération.
     let guard = 0;
-    while (!this._reachable(null) && guard++ < 200) {
-      // On casse une roche au hasard jusqu'à rouvrir un passage.
-      const i = Math.floor(Math.random() * this.cells.length);
+    while (!this._reachable(null) && guard++ < 400) {
+      // On casse une roche au hasard (seedée) jusqu'à rouvrir un passage.
+      const i = Math.floor(rng.next() * this.cells.length);
       if (this.cells[i] === CELL.ROCK) this.cells[i] = CELL.EMPTY;
+    }
+  }
+
+  /** Place le spawn et la base sur deux bords distincts, à une position aléatoire (jamais dans les coins). */
+  _placeSpawnAndBase(rng) {
+    const edges = [0, 1, 2, 3]; // gauche, droite, haut, bas
+    const spawnEdge = rng.pick(edges);
+    const baseEdge = rng.pick(edges.filter((e) => e !== spawnEdge));
+
+    const pointOnEdge = (edge) => {
+      const f = rng.float(0.18, 0.82);
+      if (edge === 0) return { x: 0, y: Math.round(f * (this.rows - 1)) };
+      if (edge === 1) return { x: this.cols - 1, y: Math.round(f * (this.rows - 1)) };
+      if (edge === 2) return { x: Math.round(f * (this.cols - 1)), y: 0 };
+      return { x: Math.round(f * (this.cols - 1)), y: this.rows - 1 };
+    };
+
+    this.spawnEdge = spawnEdge;
+    this.baseEdge = baseEdge;
+    this.spawn = pointOnEdge(spawnEdge);
+    this.base = pointOnEdge(baseEdge);
+  }
+
+  /** Vecteur unitaire pointant hors de la grille depuis un bord donné. */
+  _outwardDir(edge) {
+    if (edge === 0) return { x: -1, y: 0 };
+    if (edge === 1) return { x: 1, y: 0 };
+    if (edge === 2) return { x: 0, y: -1 };
+    return { x: 0, y: 1 };
+  }
+
+  // ---- Formes d'obstacles ----
+
+  /** Amas rocheux organiques + colonnes décoratives (forme historique). */
+  _genClusters(rng) {
+    const clusters = 11;
+    for (let c = 0; c < clusters; c++) {
+      let x = rng.int(2, this.cols - 3);
+      let y = rng.int(1, this.rows - 2);
+      const size = rng.int(2, 6);
+      for (let s = 0; s < size; s++) {
+        if (this.inBounds(x, y)) this.set(x, y, CELL.ROCK);
+        const d = rng.int(0, 3);
+        x += [1, -1, 0, 0][d];
+        y += [0, 0, 1, -1][d];
+        x = Math.max(1, Math.min(this.cols - 2, x));
+        y = Math.max(0, Math.min(this.rows - 1, y));
+      }
+    }
+    for (let x = 4; x < this.cols - 4; x += 5) {
+      const y = rng.int(1, this.rows - 2);
+      this.set(x, y, CELL.ROCK);
+      if (rng.bool(0.5)) this.set(x, Math.min(this.rows - 1, y + 1), CELL.ROCK);
+    }
+  }
+
+  /** Murs pleins percés d'une brèche qui alterne d'un côté à l'autre : corridor en serpentin. */
+  _genZigzag(rng) {
+    const horizontal = Math.abs(this.base.x - this.spawn.x) >= Math.abs(this.base.y - this.spawn.y);
+    let gapSide = rng.bool();
+    if (horizontal) {
+      const step = rng.int(3, 4);
+      for (let x = 2; x < this.cols - 2; x += step) {
+        const gapY = gapSide ? rng.int(0, 3) : rng.int(this.rows - 4, this.rows - 1);
+        const gapH = rng.int(2, 3);
+        for (let y = 0; y < this.rows; y++) {
+          if (y >= gapY && y < gapY + gapH) continue;
+          this.set(x, y, CELL.ROCK);
+        }
+        gapSide = !gapSide;
+      }
+    } else {
+      const step = rng.int(3, 4);
+      for (let y = 1; y < this.rows - 1; y += step) {
+        const gapX = gapSide ? rng.int(0, 5) : rng.int(this.cols - 6, this.cols - 1);
+        const gapW = rng.int(3, 5);
+        for (let x = 0; x < this.cols; x++) {
+          if (x >= gapX && x < gapX + gapW) continue;
+          this.set(x, y, CELL.ROCK);
+        }
+        gapSide = !gapSide;
+      }
+    }
+  }
+
+  /** Salles carrées reliées par des corridors coudés, creusées dans un bloc de roche plein. */
+  _genChambers(rng) {
+    this.cells.fill(CELL.ROCK);
+
+    const rooms = [{ x: this.spawn.x, y: this.spawn.y }];
+    const n = rng.int(3, 5);
+    for (let i = 0; i < n; i++) rooms.push({ x: rng.int(2, this.cols - 3), y: rng.int(1, this.rows - 2) });
+    rooms.push({ x: this.base.x, y: this.base.y });
+
+    const carveRoom = (cx, cy) => {
+      const w = rng.int(2, 4), h = rng.int(2, 3);
+      for (let y = cy - h; y <= cy + h; y++) {
+        for (let x = cx - w; x <= cx + w; x++) {
+          if (this.inBounds(x, y)) this.set(x, y, CELL.EMPTY);
+        }
+      }
+    };
+    const carveH = (fromX, toX, atY) => {
+      const [x0, x1] = fromX < toX ? [fromX, toX] : [toX, fromX];
+      for (let x = x0; x <= x1; x++) {
+        for (let y = atY - 1; y <= atY + 1; y++) if (this.inBounds(x, y)) this.set(x, y, CELL.EMPTY);
+      }
+    };
+    const carveV = (fromY, toY, atX) => {
+      const [y0, y1] = fromY < toY ? [fromY, toY] : [toY, fromY];
+      for (let y = y0; y <= y1; y++) {
+        for (let x = atX - 1; x <= atX + 1; x++) if (this.inBounds(x, y)) this.set(x, y, CELL.EMPTY);
+      }
+    };
+
+    for (const r of rooms) carveRoom(r.x, r.y);
+    for (let i = 0; i < rooms.length - 1; i++) {
+      const a = rooms[i], b = rooms[i + 1];
+      if (rng.bool()) { carveH(a.x, b.x, a.y); carveV(a.y, b.y, b.x); }
+      else { carveV(a.y, b.y, a.x); carveH(a.x, b.x, b.y); }
+    }
+  }
+
+  /** Grille lâche de piliers de tailles variables, plus structurée que les amas organiques. */
+  _genPillars(rng) {
+    const spacingX = rng.int(4, 5), spacingY = rng.int(3, 4);
+    for (let gy = 1; gy < this.rows - 1; gy += spacingY) {
+      for (let gx = 2; gx < this.cols - 2; gx += spacingX) {
+        if (rng.bool(0.22)) continue; // certains emplacements restent libres
+        const jx = gx + rng.int(-1, 1), jy = gy + rng.int(-1, 1);
+        const size = rng.bool(0.3) ? 2 : 1;
+        for (let y = jy; y < jy + size; y++) {
+          for (let x = jx; x < jx + size; x++) {
+            if (this.inBounds(x, y)) this.set(x, y, CELL.ROCK);
+          }
+        }
+      }
     }
   }
 
@@ -247,14 +378,22 @@ export class Grid {
 
   // ----------------------------------------------------------
   //  Chemin aérien — courbe fixe, insensible aux obstacles
-  //  et non modifiable par le joueur.
+  //  et non modifiable par le joueur. Part du même bord que le spawn au
+  //  sol (quel qu'il soit) et rejoint la base par une courbe en S dont
+  //  le sens est tiré au sort à la génération.
   // ----------------------------------------------------------
   buildAirPath() {
-    const w = GRID.w, h = GRID.h;
-    const start = { x: -30, y: h * 0.16 };
-    const c1 = { x: w * 0.28, y: -h * 0.06 };
-    const c2 = { x: w * 0.62, y: h * 1.02 };
     const end = { x: this.cx(this.base.x), y: this.cy(this.base.y) };
+    const spawnPx = { x: this.cx(this.spawn.x), y: this.cy(this.spawn.y) };
+    const out = this._outwardDir(this.spawnEdge);
+    const start = { x: spawnPx.x + out.x * 90, y: spawnPx.y + out.y * 90 };
+
+    const dx = end.x - start.x, dy = end.y - start.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const px = -dy / len, py = dx / len; // perpendiculaire unitaire
+    const bow = Math.min(GRID.w, GRID.h) * 0.32 * (this.airBowSign || 1);
+    const c1 = { x: start.x + dx * 0.3 + px * bow, y: start.y + dy * 0.3 + py * bow };
+    const c2 = { x: start.x + dx * 0.7 - px * bow, y: start.y + dy * 0.7 - py * bow };
 
     const pts = [];
     const N = 160;

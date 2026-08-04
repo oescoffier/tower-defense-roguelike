@@ -4,7 +4,7 @@
 //  ou le moteur de repli tween.js).
 // ============================================================
 
-import { TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_ORDER, TARGET, PALETTE, TREE, BRANCHES, materialsForWave } from './config.js';
+import { TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_ORDER, COMMANDER_RANK_KILLS, TARGET, PALETTE, TREE, BRANCHES, materialsForWave } from './config.js';
 import { towerCost } from './towers.js';
 import tween from './tween.js';
 
@@ -374,8 +374,10 @@ export function renderTowerPanel(game, tower) {
 
   const s = tower.stats;
   const def = tower.def;
+  const maxLvl = TOWERS[tower.archetype].upgrades.length;
+  const lvlLabel = tower.isCommander ? 'RANG' : 'NIV';
   $('#tp-name').innerHTML =
-    `<span style="color:${def.accent}">${def.name}</span> <small style="font-family:var(--font-mono);font-size:.62rem;color:var(--muted)">NIV ${tower.level}/${def.upgrades.length}</small>`;
+    `<span style="color:${def.accent}">${def.name}</span> <small style="font-family:var(--font-mono);font-size:.62rem;color:var(--muted)">${lvlLabel} ${tower.level}/${maxLvl}</small>`;
 
   const rows = tower.id === 'sandbag'
     ? [['RÔLE', 'BLOQUE LE CHEMIN']]
@@ -401,6 +403,15 @@ export function renderTowerPanel(game, tower) {
   }
   if (tower.archetype === 'aa') rows.push(['MISSILES', Math.max(1, Math.round(s.missiles))]);
   if (tower.archetype === 'mg') rows.push(['RÉGIME', Math.round(tower.spin * 100) + '% (max ×' + (Math.round(s.spinMax * 100) / 100) + ')']);
+  if (tower.isCommander) {
+    const need = COMMANDER_RANK_KILLS[tower.level];
+    if (need !== undefined) {
+      const earned = Math.max(0, game.kills - (tower.killsAtPlacement || 0));
+      rows.push(['PROCHAIN RANG', `${Math.min(earned, need)}/${need} élim.`]);
+    } else {
+      rows.push(['RANG', 'MAXIMUM']);
+    }
+  }
   if (tower.id !== 'sandbag') rows.push(['ÉLIMINATIONS', tower.kills]);
 
   $('#tp-stats').innerHTML = rows.map(([k, v]) =>
@@ -419,7 +430,9 @@ export function renderTowerPanel(game, tower) {
   const upBtn = $('#tp-upgrade');
   if (upCost === null) {
     upBtn.disabled = true;
-    upBtn.textContent = 'NIVEAU MAX';
+    upBtn.textContent = tower.isCommander
+      ? (tower.level >= maxLvl ? 'RANG MAXIMUM' : 'RANG PAR ÉLIMINATIONS')
+      : 'NIVEAU MAX';
   } else {
     upBtn.disabled = game.gold < upCost;
     upBtn.textContent = `AMÉLIORER · ${upCost}`;
