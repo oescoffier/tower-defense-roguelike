@@ -467,7 +467,7 @@ export const Weapons = {
     }
 
     game.vfx.addFlash(0.05, PALETTE.tesla);
-    game.vfx.addShake(1.4);
+    game.vfx.addShake(0.6);
     t.recoil = 1;
   },
 
@@ -524,7 +524,7 @@ export const Weapons = {
           if (!e) return;
           const r = t.stats.flakSplash * C;
           explode(g, e.x, e.y, r, t.stats.damage * bonus, {
-            mask: TARGET.AIR, color: PALETTE.air, power: 1.1,
+            mask: TARGET.AIR, color: PALETTE.air, power: 0.55,
             armorPen: game.mods['aa.armorPen'] || 0
           });
           if (game.mods['aa.cluster']) {
@@ -535,7 +535,7 @@ export const Weapons = {
                 speed: 200, maxSpeed: 620, turnRate: t.stats.turnRate * 1.4,
                 target: null, mask: TARGET.AIR, maxLife: 1.6, trailLen: 5,
                 onHit: (g2, e2) => {
-                  if (e2) explode(g2, e2.x, e2.y, r * 0.6, t.stats.damage * 0.3, { mask: TARGET.AIR, color: PALETTE.air, power: 0.6 });
+                  if (e2) explode(g2, e2.x, e2.y, r * 0.6, t.stats.damage * 0.3, { mask: TARGET.AIR, color: PALETTE.air, power: 0.3 });
                 }
               }));
             }
@@ -545,7 +545,7 @@ export const Weapons = {
     }
     game.vfx.muzzle(t.px, t.py, -Math.PI / 2, PALETTE.air, 1.2);
     game.vfx.smoke(t.px, t.py, '#4a4a4a', 3);
-    game.vfx.addShake(1.8);
+    game.vfx.addShake(0.7);
     t.recoil = 1;
   }
 };
@@ -561,7 +561,7 @@ export function chainReaction(game, enemy, depth = 0) {
 
   game.vfx.ring(enemy.x, enemy.y, 4, r * 1.3, 0.35, PALETTE.tesla, 4);
   game.vfx.addFlash(0.08, PALETTE.tesla);
-  game.vfx.addShake(2.4);
+  game.vfx.addShake(Math.max(0.3, 1.1 - depth * 0.25));
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * TAU;
     game.vfx.lightning(enemy.x, enemy.y,
@@ -594,7 +594,7 @@ export function teslaStorm(game) {
   const damage = 60 + game.wave * 14;
   game.vfx.lightning(best.x, -40, best.x, best.y, '#ffffff', 0.3, 22);
   game.vfx.addFlash(0.28, PALETTE.tesla);
-  game.vfx.addShake(7);
+  game.vfx.addShake(4);
   explode(game, best.x, best.y, C * 1.8, damage, { mask: TARGET.BOTH, color: PALETTE.tesla, type: 'tesla', power: 1.2 });
   best.charged = Math.max(best.charged, 3);
   best.chargedDmg += damage * 0.4;

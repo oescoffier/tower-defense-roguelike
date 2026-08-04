@@ -557,7 +557,7 @@ function bindGameInputs() {
   window.addEventListener('keydown', (ev) => {
     if (game.state !== STATE.GAME) return;
     const k = ev.key;
-    if (k >= '1' && k <= '6') {
+    if (k >= '1' && k <= '7') {
       pickTower(TOWER_ORDER[+k - 1]);
     } else if (k === 'Escape') {
       game.placing = null;

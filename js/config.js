@@ -47,7 +47,7 @@ export const STATE = {
 };
 
 // ---------- Cibles ----------
-export const TARGET = { GROUND: 1, AIR: 2, BOTH: 3 };
+export const TARGET = { NONE: 0, GROUND: 1, AIR: 2, BOTH: 3 };
 
 export const PRIORITY = ['first', 'last', 'close', 'strong', 'weak'];
 export const PRIORITY_LABEL = {
@@ -199,10 +199,25 @@ export const TOWERS = {
       { cost: 224, damage: 1.45, missiles: 1, turnRate: 1.15 },
       { cost: 358, damage: 1.55, missiles: 1, flakSplash: 1.3 }
     ]
+  },
+
+  sandbag: {
+    id: 'sandbag',
+    name: 'SAC DE SABLE',
+    short: 'SDS',
+    cost: 15,
+    color: '#f4f4f4',
+    accent: '#c9a870',
+    targets: TARGET.NONE,
+    damage: 0,
+    rate: 0,
+    range: 0,
+    desc: 'Bloc inerte, pas cher. Ne tire pas : sert uniquement à barricader une case et forcer les ennemis à dévier.',
+    upgrades: []
   }
 };
 
-export const TOWER_ORDER = ['mg', 'sniper', 'mortar', 'tesla', 'flame', 'aa'];
+export const TOWER_ORDER = ['mg', 'sniper', 'mortar', 'tesla', 'flame', 'aa', 'sandbag'];
 
 // ============================================================
 //  ENNEMIS

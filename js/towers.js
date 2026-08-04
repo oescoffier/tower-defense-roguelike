@@ -132,7 +132,7 @@ export class Tower {
   }
 
   upgradeCost(mods) {
-    if (this.level >= 3) return null;
+    if (this.level >= this.def.upgrades.length) return null;
     const base = this.def.upgrades[this.level].cost;
     return Math.max(10, Math.round(base * Math.max(0.4, 1 + m(mods, `${this.id}.cost`))));
   }
@@ -447,6 +447,32 @@ export class Tower {
         ctx.restore();
         ctx.fillStyle = PALETTE.line;
         ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, TAU); ctx.fill();
+        break;
+      }
+      case 'sandbag': {
+        ctx.rotate(-this.angle); // pile symétrique, insensible à l'orientation
+        const bags = [
+          [-8, 5, 11, 7, -0.12], [7, 5, 11, 7, 0.1],
+          [-6, -4, 11, 7, 0.08], [6, -4.5, 10, 6.5, -0.09]
+        ];
+        for (const [bx, by, bw, bh, rot] of bags) {
+          ctx.save();
+          ctx.translate(bx, by);
+          ctx.rotate(rot);
+          ctx.fillStyle = A;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, bw / 2, bh / 2, 0, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = '#090909';
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+          // couture centrale
+          ctx.beginPath();
+          ctx.moveTo(-bw / 2 + 2, 0);
+          ctx.lineTo(bw / 2 - 2, 0);
+          ctx.stroke();
+          ctx.restore();
+        }
         break;
       }
     }

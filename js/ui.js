@@ -16,12 +16,13 @@ export const $ = (sel) => document.querySelector(sel);
 export const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
 const TARGET_LABEL = {
+  [TARGET.NONE]: 'BLOCAGE',
   [TARGET.GROUND]: '<span class="gnd-tag">SOL</span>',
   [TARGET.AIR]: '<span class="air-tag">AIR</span>',
   [TARGET.BOTH]: '<span class="gnd-tag">SOL</span> + <span class="air-tag">AIR</span>'
 };
 
-const GLYPHS = { mg: '⌗', sniper: '✛', mortar: '◎', tesla: '⚡', flame: '▲', aa: '✈' };
+const GLYPHS = { mg: '⌗', sniper: '✛', mortar: '◎', tesla: '⚡', flame: '▲', aa: '✈', sandbag: '▦' };
 
 // ============================================================
 //  Transitions d'écran (volets néo-brutalistes)
@@ -319,15 +320,17 @@ export function renderTowerPanel(game, tower) {
   const s = tower.stats;
   const def = tower.def;
   $('#tp-name').innerHTML =
-    `<span style="color:${def.accent}">${def.name}</span> <small style="font-family:var(--font-mono);font-size:.62rem;color:var(--muted)">NIV ${tower.level}/3</small>`;
+    `<span style="color:${def.accent}">${def.name}</span> <small style="font-family:var(--font-mono);font-size:.62rem;color:var(--muted)">NIV ${tower.level}/${def.upgrades.length}</small>`;
 
-  const rows = [
-    ['DPS', Math.round(tower.dps)],
-    ['DÉGÂTS', Math.round(s.damage * 10) / 10],
-    ['CADENCE', (Math.round(s.rate * 100) / 100) + '/s'],
-    ['PORTÉE', Math.round(s.range * 10) / 10],
-    ['CIBLES', s.mask === TARGET.AIR ? 'AIR' : s.mask === TARGET.GROUND ? 'SOL' : 'SOL+AIR']
-  ];
+  const rows = tower.id === 'sandbag'
+    ? [['RÔLE', 'BLOQUE LE CHEMIN']]
+    : [
+      ['DPS', Math.round(tower.dps)],
+      ['DÉGÂTS', Math.round(s.damage * 10) / 10],
+      ['CADENCE', (Math.round(s.rate * 100) / 100) + '/s'],
+      ['PORTÉE', Math.round(s.range * 10) / 10],
+      ['CIBLES', s.mask === TARGET.AIR ? 'AIR' : s.mask === TARGET.GROUND ? 'SOL' : 'SOL+AIR']
+    ];
   if (tower.id === 'sniper') {
     rows.push(['CRITIQUE', Math.round(s.critChance * 100) + '% ×' + (Math.round(s.critMult * 10) / 10)]);
     rows.push(['PERÇAGE', Math.floor(s.pierce)]);
@@ -343,11 +346,12 @@ export function renderTowerPanel(game, tower) {
   }
   if (tower.id === 'aa') rows.push(['MISSILES', Math.max(1, Math.round(s.missiles))]);
   if (tower.id === 'mg') rows.push(['RÉGIME', Math.round(tower.spin * 100) + '% (max ×' + (Math.round(s.spinMax * 100) / 100) + ')']);
-  rows.push(['ÉLIMINATIONS', tower.kills]);
+  if (tower.id !== 'sandbag') rows.push(['ÉLIMINATIONS', tower.kills]);
 
   $('#tp-stats').innerHTML = rows.map(([k, v]) =>
     `<div class="tp-stat"><span>${k}</span><b>${v}</b></div>`).join('');
 
+  $('#tp-target-row').hidden = tower.id === 'sandbag';
   $('#tp-priority').textContent = {
     first: 'PREMIER', last: 'DERNIER', close: 'PROCHE', strong: 'SOLIDE', weak: 'FAIBLE'
   }[tower.priority];
