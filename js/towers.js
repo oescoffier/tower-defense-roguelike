@@ -172,9 +172,6 @@ export class Tower {
     this.priority = PRIORITY[(i + dir + PRIORITY.length) % PRIORITY.length];
   }
 
-  /** Niveau utilisé pour la taille du rendu : un commandant part déjà imposant, et grossit encore à chaque rang. */
-  get visualLevel() { return this.isCommander ? 4 + this.level : this.level; }
-
   // ----------------------------------------------------------
   update(dt, game) {
     this.placeAnim = Math.min(1, this.placeAnim + dt * 3.2);
@@ -238,7 +235,6 @@ export class Tower {
     const scale = 0.4 + 0.6 * ease;
     const accent = this.def.accent;
     const lvl = this.level;
-    const vis = this.visualLevel;
     const maxLvl = this.def.upgrades.length;
     const elite = this.isCommander || (maxLvl > 0 && lvl >= maxLvl);
 
@@ -260,20 +256,20 @@ export class Tower {
     ctx.scale(scale, scale);
     ctx.globalAlpha = ease;
 
-    // --- Socle néo-brutaliste : ombre dure décalée, s'épaissit avec le niveau ---
-    const s = (C - 8) + vis * 3.4;
-    const shadow = 4 + vis * 1.1;
+    // --- Socle néo-brutaliste : ombre dure décalée, s'épaissit légèrement avec le niveau ---
+    const s = (C - 8) + lvl * 1.6;
+    const shadow = 4 + lvl * 0.5;
     ctx.fillStyle = accent;
     ctx.fillRect(-s / 2 + shadow, -s / 2 + shadow, s, s);
     ctx.fillStyle = PALETTE.surface2;
     ctx.fillRect(-s / 2, -s / 2, s, s);
     ctx.strokeStyle = elite ? PALETTE.gold : PALETTE.line;
-    ctx.lineWidth = 2 + vis * 0.7;
+    ctx.lineWidth = 2 + lvl * 0.4;
     ctx.strokeRect(-s / 2, -s / 2, s, s);
 
-    // Plaques de blindage aux coins — niveau 2+ (toujours présentes sur un commandant)
-    if (vis >= 2) {
-      const cs = 6 + (vis - 1) * 1.6;
+    // Plaques de blindage aux coins — niveau 2+
+    if (lvl >= 2) {
+      const cs = 6 + (lvl - 1) * 1.6;
       for (const [cx, cy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
         ctx.save();
         ctx.translate(cx * (s / 2 - cs / 2 - 1), cy * (s / 2 - cs / 2 - 1));
@@ -336,12 +332,10 @@ export class Tower {
       }
     }
 
-    // --- Tourelle : grandit avec le niveau pour bien marquer la montée en puissance ---
+    // --- Tourelle : les pièces d'arme grandissent déjà avec le niveau (voir _drawTurret) ---
     ctx.rotate(this.angle);
     const rec = this.recoil * (this.archetype === 'sniper' ? 7 : 3);
     ctx.translate(-rec, 0);
-    const turretScale = 1 + vis * 0.12;
-    ctx.scale(turretScale, turretScale);
     this._drawTurret(ctx, time);
 
     ctx.restore();
@@ -398,7 +392,7 @@ export class Tower {
 
     switch (this.archetype) {
       case 'mg': {
-        const barrels = 1 + this.visualLevel;
+        const barrels = 1 + this.level;
         const spinRot = this.spin * time * 14;
         ctx.save();
         ctx.rotate(0);
@@ -406,8 +400,8 @@ export class Tower {
         for (let i = 0; i < barrels; i++) {
           const off = (i - (barrels - 1) / 2) * 4.2;
           const wob = Math.cos(spinRot + i * 2) * 1.4 * this.spin;
-          ctx.fillRect(4, off - 1.4 + wob, 18 + this.visualLevel * 2, 2.8);
-          ctx.strokeRect(4, off - 1.4 + wob, 18 + this.visualLevel * 2, 2.8);
+          ctx.fillRect(4, off - 1.4 + wob, 18 + this.level * 2, 2.8);
+          ctx.strokeRect(4, off - 1.4 + wob, 18 + this.level * 2, 2.8);
         }
         ctx.restore();
         ctx.fillStyle = A;
@@ -425,8 +419,8 @@ export class Tower {
       }
       case 'sniper': {
         ctx.fillStyle = PALETTE.text;
-        ctx.fillRect(2, -2, 26 + this.visualLevel * 3, 4);
-        ctx.strokeRect(2, -2, 26 + this.visualLevel * 3, 4);
+        ctx.fillRect(2, -2, 26 + this.level * 3, 4);
+        ctx.strokeRect(2, -2, 26 + this.level * 3, 4);
         ctx.fillStyle = A;
         ctx.fillRect(-9, -6, 14, 12);
         ctx.strokeStyle = PALETTE.line;
@@ -452,10 +446,10 @@ export class Tower {
         ctx.save();
         ctx.rotate(-0.5);
         ctx.fillStyle = PALETTE.text;
-        ctx.fillRect(0, -4.5, 20 + this.visualLevel * 2, 9);
-        ctx.strokeRect(0, -4.5, 20 + this.visualLevel * 2, 9);
+        ctx.fillRect(0, -4.5, 20 + this.level * 2, 9);
+        ctx.strokeRect(0, -4.5, 20 + this.level * 2, 9);
         ctx.fillStyle = '#090909';
-        ctx.fillRect(16 + this.visualLevel * 2, -3.5, 4, 7);
+        ctx.fillRect(16 + this.level * 2, -3.5, 4, 7);
         ctx.restore();
         ctx.fillStyle = A;
         ctx.beginPath();
@@ -471,7 +465,7 @@ export class Tower {
         ctx.strokeStyle = PALETTE.line;
         ctx.strokeRect(-5, -3, 10, 12);
         // bobines
-        for (let i = 0; i < 3 + this.visualLevel; i++) {
+        for (let i = 0; i < 3 + this.level; i++) {
           ctx.strokeStyle = i % 2 ? A : PALETTE.line;
           ctx.lineWidth = 1.6;
           ctx.beginPath();
@@ -498,13 +492,13 @@ export class Tower {
       }
       case 'flame': {
         ctx.fillStyle = PALETTE.text;
-        ctx.fillRect(2, -3.5, 16 + this.visualLevel, 7);
-        ctx.strokeRect(2, -3.5, 16 + this.visualLevel, 7);
+        ctx.fillRect(2, -3.5, 16 + this.level, 7);
+        ctx.strokeRect(2, -3.5, 16 + this.level, 7);
         ctx.fillStyle = A;
         ctx.beginPath();
-        ctx.moveTo(18 + this.visualLevel, -5.5);
-        ctx.lineTo(24 + this.visualLevel, 0);
-        ctx.lineTo(18 + this.visualLevel, 5.5);
+        ctx.moveTo(18 + this.level, -5.5);
+        ctx.lineTo(24 + this.level, 0);
+        ctx.lineTo(18 + this.level, 5.5);
         ctx.closePath(); ctx.fill(); ctx.stroke();
         // réservoirs
         ctx.fillStyle = A;
@@ -516,7 +510,7 @@ export class Tower {
         // veilleuse
         ctx.fillStyle = PALETTE.fire;
         ctx.globalAlpha = 0.6 + Math.random() * 0.4;
-        ctx.beginPath(); ctx.arc(24 + this.visualLevel, 0, 2.4, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(24 + this.level, 0, 2.4, 0, TAU); ctx.fill();
         ctx.globalAlpha = 1;
         break;
       }
