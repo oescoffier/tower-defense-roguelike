@@ -3,7 +3,7 @@
 // ============================================================
 
 import {
-  STATE, GRID, ECONOMY, WAVE, TOWERS, TOWER_ORDER, PALETTE, TARGET,
+  STATE, GRID, ECONOMY, WAVE, TOWERS, TOWER_ORDER, COMMANDERS, PALETTE, TARGET,
   materialsForWave
 } from './config.js';
 import { Grid } from './grid.js';
@@ -46,6 +46,7 @@ const game = {
   projectiles: [],
   vfx: new Vfx(),
   mods: {},
+  commanderChoice: null,
 
   waveRunner: null,
   waveRunning: false,
@@ -150,6 +151,8 @@ function startRun() {
   game.enemies = [];
   game.projectiles = [];
   game.vfx.clear();
+  // Le commandant choisi dans le menu est figé pour toute la durée de la partie.
+  game.commanderChoice = save.commander;
 
   game.maxLives = ECONOMY.startLives + Math.floor(game.mods['player.lives'] || 0);
   game.lives = game.maxLives;
@@ -203,7 +206,7 @@ function startWave() {
 
   // Keystone DCA : barrage automatique sur les vagues aériennes
   if (game.mods['aa.barrage'] && game.waveData.airRatio > 0) {
-    for (const t of game.towers) if (t.id === 'aa') t.cooldown = 0;
+    for (const t of game.towers) if (t.archetype === 'aa') t.cooldown = 0;
   }
 
   const sum = waveSummary(game.waveData);
@@ -335,7 +338,7 @@ function step(dt) {
 
   // Cratères persistants du mortier
   for (const t of game.towers) {
-    if (t.id !== 'mortar' || !t.craters.length) continue;
+    if (t.archetype !== 'mortar' || !t.craters.length) continue;
     const dps = t.stats.damage * 0.18 * (1 + (game.mods['mortar.craterDps'] || 0));
     for (const c of t.craters) {
       for (const e of game.enemies) {
@@ -418,10 +421,33 @@ function canvasCell(ev) {
   return cell;
 }
 
+/** Une seule tour commandant peut être déployée à la fois. */
+function hasCommanderDeployed() {
+  return game.towers.some((t) => t.isCommander);
+}
+
+/**
+ * Applique (sign=1) ou retire (sign=-1) la capacité de commandement d'un
+ * commandant sur toutes les tours de la partie, en réutilisant les mêmes
+ * clés de modificateur que les notables/clés de voûte de l'arbre.
+ */
+function applyCommanderGrants(tower, sign) {
+  for (const [key, value] of Object.entries(tower.def.grants || {})) {
+    game.mods[key] = (game.mods[key] || 0) + value * sign;
+  }
+  game.chainBlastMult = 0.6 + (game.mods['tesla.chainBlast'] || 0);
+  for (const t of game.towers) t.recompute(game.mods);
+}
+
 function updatePlaceValidity() {
   if (!game.placing || !game.hover) { game.placeValid = false; return; }
   const cost = towerCost(game.placing, game.mods);
-  const free = game.mods['player.war'] && !game.freeTypes.has(game.placing);
+  const free = !COMMANDERS[game.placing] && game.mods['player.war'] && !game.freeTypes.has(game.placing);
+  if (COMMANDERS[game.placing] && hasCommanderDeployed()) {
+    game.placeValid = false;
+    game.placeReason = 'COMMANDANT DÉJÀ DÉPLOYÉ';
+    return;
+  }
   const res = game.grid.canPlace(game.hover.x, game.hover.y, game.enemies);
   game.placeValid = res.ok && (free || game.gold >= cost);
   game.placeReason = res.ok ? (free || game.gold >= cost ? '' : 'CRÉDITS INSUFFISANTS') : res.reason;
@@ -432,7 +458,12 @@ function tryPlace() {
   const { x, y } = game.hover;
   const id = game.placing;
   const cost = towerCost(id, game.mods);
-  const free = game.mods['player.war'] && !game.freeTypes.has(id);
+  const free = !COMMANDERS[id] && game.mods['player.war'] && !game.freeTypes.has(id);
+
+  if (COMMANDERS[id] && hasCommanderDeployed()) {
+    refusePlacement(x, y, 'COMMANDANT DÉJÀ DÉPLOYÉ');
+    return;
+  }
 
   const res = game.grid.canPlace(x, y, game.enemies);
   if (!res.ok) {
@@ -458,6 +489,11 @@ function tryPlace() {
   game.grid.place(x, y, tower);
   for (const e of game.enemies) e.repath();
 
+  if (tower.isCommander) {
+    applyCommanderGrants(tower, 1);
+    UI.toast(`<b>COMMANDANT DÉPLOYÉ</b><br>${tower.def.name} prend le terrain`, 'good', 3200);
+  }
+
   game.vfx.towerPlaced(tower.px, tower.py, tower.def.accent);
   UI.refreshShop(game);
   UI.refreshHud(game);
@@ -482,6 +518,7 @@ function selectTowerAt(x, y) {
 function sellSelected() {
   const t = game.selected;
   if (!t) return;
+  if (t.isCommander) applyCommanderGrants(t, -1);
   game.gold += t.sellValue(game.mods);
   game.vfx.towerSold(t.px, t.py);
   game.grid.remove(t.gx, t.gy);
@@ -607,6 +644,36 @@ function fitStage() {
   stage.style.marginTop = stage.style.marginBottom = `${-(GRID.h * (1 - k)) / 2}px`;
   const bottom = document.querySelector('.stage-bottom');
   if (bottom) bottom.style.width = `${GRID.w * k}px`;
+}
+
+// ============================================================
+//  Entrées — commandant
+// ============================================================
+
+function openCommanderScreen() {
+  UI.showScreen('screen-commander', {
+    onSwap: () => {
+      game.state = STATE.COMMANDER;
+      refreshCommanderScreen();
+    }
+  });
+}
+
+function refreshCommanderScreen() {
+  UI.renderCommanderGrid(save, (id) => {
+    save.setCommander(id);
+    refreshCommanderScreen();
+  });
+  const c = COMMANDERS[save.commander];
+  $('#cmdr-current-name').textContent = c ? c.name : 'AUCUN';
+}
+
+function bindCommanderInputs() {
+  $('#btn-commander').addEventListener('click', openCommanderScreen);
+  $('#cmdr-back').addEventListener('click', () => {
+    UI.renderMenu(save, tree.nodes.length - 1);
+    UI.showScreen('screen-menu', { onSwap: () => { game.state = STATE.MENU; } });
+  });
 }
 
 // ============================================================
@@ -739,6 +806,7 @@ function init() {
   bindGameInputs();
   bindMenuInputs();
   bindTreeInputs();
+  bindCommanderInputs();
 
   window.addEventListener('resize', () => {
     fitStage();

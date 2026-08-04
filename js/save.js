@@ -7,6 +7,7 @@ const KEY = 'td_roguelike_save_v1';
 const DEFAULTS = () => ({
   materials: 0,
   unlocked: [],
+  commander: null,
   bestWave: 0,
   totalRuns: 0,
   totalKills: 0,
@@ -24,6 +25,9 @@ export class Save {
 
   get materials() { return this.data.materials; }
   set materials(v) { this.data.materials = Math.max(0, Math.round(v)); }
+
+  get commander() { return this.data.commander; }
+  setCommander(id) { this.data.commander = id; this.persist(); }
 
   load() {
     try {

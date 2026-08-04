@@ -42,6 +42,7 @@ export const STATE = {
   BOOT: 'BOOT',
   MENU: 'MENU',
   TREE: 'TREE',
+  COMMANDER: 'COMMANDER',
   GAME: 'GAME',
   OVER: 'OVER'
 };
@@ -218,6 +219,174 @@ export const TOWERS = {
 };
 
 export const TOWER_ORDER = ['mg', 'sniper', 'mortar', 'tesla', 'flame', 'aa', 'sandbag'];
+
+// ============================================================
+//  COMMANDANTS
+// ============================================================
+// Tours d'élite choisies une fois pour toutes depuis le menu, avant de
+// lancer une partie. Une seule peut être posée à la fois. Chacune reprend
+// l'archétype d'une tour existante (mêmes armes, même rendu) mais avec des
+// statistiques bien supérieures, et accorde en plus une capacité de
+// commandement : un bonus global (les mêmes clés que les notables/clés de
+// voûte de l'arbre) appliqué à TOUTES les tours de la branche concernée
+// tant qu'elle reste sur le terrain.
+
+export const COMMANDERS = {
+  cmdr_fury: {
+    id: 'cmdr_fury', name: 'FURIE', archetype: 'mg', cost: 300, accent: '#ff6a3d',
+    targets: TARGET.BOTH, damage: 32, rate: 16, range: 4.6, spinMax: 3.4, spinUp: 0.5, spinDown: 0.3,
+    desc: 'Rafale ininterrompue qui monte en régime presque instantanément. Accorde DÉLUGE à toutes les mitrailleuses : leur régime ne retombe plus entre deux vagues.',
+    grants: { 'mg.spinMax': 0.5, 'mg.deluge': 1 },
+    upgrades: []
+  },
+  cmdr_leadstorm: {
+    id: 'cmdr_leadstorm', name: 'TEMPÊTE DE PLOMB', archetype: 'mg', cost: 300, accent: '#ffae42',
+    targets: TARGET.BOTH, damage: 24, rate: 22, range: 4.2, spinMax: 2.6, spinUp: 0.8, spinDown: 0.6,
+    desc: 'Un déluge de balles qui ricochent d\'une cible à l\'autre. Toutes les mitrailleuses gagnent +40% de cadence et +35% de chance de ricochet.',
+    grants: { 'mg.rate': 0.4, 'mg.ricochet': 0.35 },
+    upgrades: []
+  },
+  cmdr_bastion: {
+    id: 'cmdr_bastion', name: 'BASTION', archetype: 'mg', cost: 320, accent: '#c94b4b',
+    targets: TARGET.BOTH, damage: 48, rate: 12, range: 4.0, spinMax: 2.0, spinUp: 1.0, spinDown: 1.0,
+    desc: 'Mur de plomb qui écrase tout ce qui s\'approche. Toutes les mitrailleuses ignorent 10 points d\'armure et ralentissent leurs cibles de 20%.',
+    grants: { 'mg.wall': 1, 'mg.armorPen': 10, 'mg.slow': 0.2 },
+    upgrades: []
+  },
+
+  cmdr_ghost: {
+    id: 'cmdr_ghost', name: 'FANTÔME', archetype: 'sniper', cost: 420, accent: '#ff3b3b',
+    targets: TARGET.BOTH, damage: 900, rate: 1.4, range: 11, pierce: 6, critChance: 0.35, critMult: 4,
+    desc: 'Tir fantôme, précision inhumaine. Accorde UN COUP, UNE MORT à tous les snipers : leurs critiques ignorent toute réduction et percent tout sur leur trajectoire.',
+    grants: { 'sniper.oneshot': 1 },
+    upgrades: []
+  },
+  cmdr_hawkeye: {
+    id: 'cmdr_hawkeye', name: 'ŒIL DE FAUCON', archetype: 'sniper', cost: 380, accent: '#ff7043',
+    targets: TARGET.BOTH, damage: 500, rate: 2.2, range: 13, pierce: 4, critChance: 0.5, critMult: 3,
+    desc: 'Voit et abat tout ce qui entre sur le terrain. Tous les snipers gagnent +30% de portée et une portée illimitée sur la première cible de chaque vague.',
+    grants: { 'sniper.silence': 1, 'sniper.range': 0.3 },
+    upgrades: []
+  },
+  cmdr_executioner: {
+    id: 'cmdr_executioner', name: 'BOURREAU', archetype: 'sniper', cost: 400, accent: '#d63447',
+    targets: TARGET.BOTH, damage: 650, rate: 1.0, range: 9, pierce: 3, critChance: 0.25, critMult: 3.5,
+    desc: 'Achève tout ce qui vacille. Tous les snipers exécutent les cibles sous 22% de vie et rechargent instantanément leur tir sur une élimination.',
+    grants: { 'sniper.execute': 0.22, 'sniper.cascade': 1 },
+    upgrades: []
+  },
+  cmdr_vengeance: {
+    id: 'cmdr_vengeance', name: 'VENGEANCE', archetype: 'sniper', cost: 440, accent: '#a4161a',
+    targets: TARGET.BOTH, damage: 1100, rate: 0.8, range: 10, pierce: 8, critChance: 0.2, critMult: 5,
+    desc: 'Chaque tir embrase et transperce la colonne ennemie. Tous les snipers appliquent une brûlure à l\'impact et gagnent +60% de perçage.',
+    grants: { 'sniper.burn': 1, 'sniper.pierce': 0.6 },
+    upgrades: []
+  },
+
+  cmdr_heavyarty: {
+    id: 'cmdr_heavyarty', name: 'ARTILLERIE LOURDE', archetype: 'mortar', cost: 380, accent: '#e0a72e',
+    targets: TARGET.GROUND, damage: 260, rate: 1.0, range: 8, splash: 3.2, arcTime: 0.6,
+    desc: 'Pluie d\'obus sur toute une zone. Tous les mortiers tirent 2 obus supplémentaires par salve et leurs cratères infligent +60% de dégâts.',
+    grants: { 'mortar.salvo': 2, 'mortar.craterDps': 0.6 },
+    upgrades: []
+  },
+  cmdr_scorchedearth: {
+    id: 'cmdr_scorchedearth', name: 'TERRE BRÛLÉE', archetype: 'mortar', cost: 360, accent: '#c96f2e',
+    targets: TARGET.GROUND, damage: 180, rate: 1.3, range: 7, splash: 2.6, arcTime: 0.55,
+    desc: 'Ne laisse derrière lui que des ruines fumantes. Les cratères de tous les mortiers deviennent permanents et projettent 10 éclats à chaque explosion.',
+    grants: { 'mortar.scorched': 1, 'mortar.shrapnel': 10 },
+    upgrades: []
+  },
+  cmdr_earthquake: {
+    id: 'cmdr_earthquake', name: 'SÉISME', archetype: 'mortar', cost: 380, accent: '#b5651d',
+    targets: TARGET.GROUND, damage: 220, rate: 0.9, range: 7.5, splash: 3.6, arcTime: 0.7,
+    desc: 'Chaque impact fait trembler le secteur. Toutes les explosions de mortier étourdissent 0.6s et aspirent les ennemis vers leur centre.',
+    grants: { 'mortar.stun': 0.6, 'mortar.implode': 1 },
+    upgrades: []
+  },
+
+  cmdr_lightning: {
+    id: 'cmdr_lightning', name: 'FOUDRE', archetype: 'tesla', cost: 420, accent: '#7fdfff',
+    targets: TARGET.BOTH, damage: 90, rate: 2.6, range: 5.5, bounces: 14, bounceFalloff: 0.94, bounceRange: 4.5, chargeDur: 6, chainBlast: 1.0,
+    desc: 'L\'arc électrique ne s\'arrête presque jamais de rebondir. Déclenche ORAGE : toutes les 6 secondes, un éclair frappe la cible la plus solide du terrain.',
+    grants: { 'tesla.storm': 1 },
+    upgrades: []
+  },
+  cmdr_overvolt: {
+    id: 'cmdr_overvolt', name: 'SURTENSION', archetype: 'tesla', cost: 400, accent: '#5ec8f8',
+    targets: TARGET.BOTH, damage: 130, rate: 2.0, range: 5, bounces: 8, bounceFalloff: 0.9, bounceRange: 3.6, chargeDur: 5, chainBlast: 1.4,
+    desc: 'Chaque mort chargée devient une bombe. Accorde SURCHARGE CRITIQUE à tous les teslas et +50% de puissance d\'explosion en chaîne.',
+    grants: { 'tesla.overload': 1, 'tesla.chainBlast': 0.5 },
+    upgrades: []
+  },
+  cmdr_reactor: {
+    id: 'cmdr_reactor', name: 'RÉACTEUR', archetype: 'tesla', cost: 400, accent: '#38b6ff',
+    targets: TARGET.BOTH, damage: 70, rate: 3.2, range: 5.2, bounces: 10, bounceFalloff: 0.92, bounceRange: 4.0, chargeDur: 6, chainBlast: 0.8,
+    desc: 'Une cadence effrénée qui ne faiblit jamais. Sous 20% de vie, la chaîne de tous les teslas rebondit sans limite, et chaque impact retire 50% du bouclier touché.',
+    grants: { 'tesla.infinite': 1, 'tesla.emp': 0.5 },
+    upgrades: []
+  },
+  cmdr_endlessstorm: {
+    id: 'cmdr_endlessstorm', name: 'ORAGE ÉTERNEL', archetype: 'tesla', cost: 460, accent: '#29a8e0',
+    targets: TARGET.BOTH, damage: 100, rate: 2.2, range: 5.6, bounces: 12, bounceFalloff: 0.93, bounceRange: 4.2, chargeDur: 7, chainBlast: 1.2,
+    desc: 'Le ciel entier devient une arme. Cumule ORAGE et RÉACTION EN CHAÎNE TOTALE sur tous les teslas — l\'orage le plus dévastateur du secteur.',
+    grants: { 'tesla.storm': 1, 'tesla.infinite': 1 },
+    upgrades: []
+  },
+
+  cmdr_inferno: {
+    id: 'cmdr_inferno', name: 'INFERNO', archetype: 'flame', cost: 380, accent: '#ff5722',
+    targets: TARGET.GROUND, damage: 55, rate: 9, range: 3.6, cone: 110, burnDps: 40, burnDur: 6, burnStacks: 12,
+    desc: 'Une mer de flammes qui ne s\'éteint jamais. Accorde INFERNO à tous les lance-flammes : leurs brûlures ne s\'arrêtent plus tant que la cible reste en vie.',
+    grants: { 'flame.inferno': 1 },
+    upgrades: []
+  },
+  cmdr_dragon: {
+    id: 'cmdr_dragon', name: 'DRAGON', archetype: 'flame', cost: 380, accent: '#ff8a3d',
+    targets: TARGET.GROUND, damage: 45, rate: 8, range: 3.8, cone: 90, burnDps: 30, burnDur: 5, burnStacks: 10,
+    desc: 'Souffle un cône de feu qui touche même les aériens à basse altitude. Tous les lance-flammes propagent leur brûlure à 2 cellules autour de la cible.',
+    grants: { 'flame.dragon': 1, 'flame.spread': 2 },
+    upgrades: []
+  },
+  cmdr_combustion: {
+    id: 'cmdr_combustion', name: 'COMBUSTION', archetype: 'flame', cost: 360, accent: '#ff3d00',
+    targets: TARGET.GROUND, damage: 60, rate: 7, range: 3.4, cone: 80, burnDps: 45, burnDur: 5, burnStacks: 8,
+    desc: 'Chaque cadavre en flammes devient une explosion. Toutes les brûlures de lance-flammes font exploser leur cible à sa mort et rongent 1.2 armure/s.',
+    grants: { 'flame.combust': 1, 'flame.melt': 1.2 },
+    upgrades: []
+  },
+
+  cmdr_totalflak: {
+    id: 'cmdr_totalflak', name: 'FLAK TOTALE', archetype: 'aa', cost: 440, accent: '#4fc3f7',
+    targets: TARGET.AIR, damage: 380, rate: 2.0, range: 9, missiles: 5, missileSpeed: 20, turnRate: 9, flakSplash: 2.2,
+    desc: 'Sature le ciel de munitions. Toutes les DCA verrouillent des cibles différentes par salve et chaque missile se divise en 3 à l\'impact.',
+    grants: { 'aa.multiLock': 1, 'aa.cluster': 1 },
+    upgrades: []
+  },
+  cmdr_sentinel: {
+    id: 'cmdr_sentinel', name: 'SENTINELLE', archetype: 'aa', cost: 420, accent: '#29b6f6',
+    targets: TARGET.AIR, damage: 450, rate: 1.6, range: 10, missiles: 3, missileSpeed: 18, turnRate: 8, flakSplash: 1.8,
+    desc: 'Ne laisse rien franchir la ligne aérienne. Toutes les DCA tirent une salve complète à chaque nouvelle vague aérienne et infligent +50% aux boss volants.',
+    grants: { 'aa.barrage': 1, 'aa.nofly': 1 },
+    upgrades: []
+  },
+  cmdr_interceptor: {
+    id: 'cmdr_interceptor', name: 'INTERCEPTEUR', archetype: 'aa', cost: 400, accent: '#039be5',
+    targets: TARGET.AIR, damage: 320, rate: 2.6, range: 8.5, missiles: 4, missileSpeed: 24, turnRate: 11, flakSplash: 1.6,
+    desc: 'Rien n\'est assez rapide ou blindé pour lui échapper. Toutes les DCA ignorent 20 points d\'armure et gagnent +50% de guidage.',
+    grants: { 'aa.armorPen': 20, 'aa.turnRate': 0.5 },
+    upgrades: []
+  }
+};
+
+export const COMMANDER_ORDER = [
+  'cmdr_fury', 'cmdr_leadstorm', 'cmdr_bastion',
+  'cmdr_ghost', 'cmdr_hawkeye', 'cmdr_executioner', 'cmdr_vengeance',
+  'cmdr_heavyarty', 'cmdr_scorchedearth', 'cmdr_earthquake',
+  'cmdr_lightning', 'cmdr_overvolt', 'cmdr_reactor', 'cmdr_endlessstorm',
+  'cmdr_inferno', 'cmdr_dragon', 'cmdr_combustion',
+  'cmdr_totalflak', 'cmdr_sentinel', 'cmdr_interceptor'
+];
 
 // ============================================================
 //  ENNEMIS

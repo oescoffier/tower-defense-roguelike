@@ -57,6 +57,9 @@
           <button class="btn btn-ghost btn-lg" id="btn-tree">
             <span>ARBRE DE COMPÉTENCES</span><i class="btn-badge" id="tree-badge">0</i>
           </button>
+          <button class="btn btn-ghost btn-lg" id="btn-commander">
+            <span>COMMANDANT</span><i class="btn-badge" id="commander-badge">AUCUN</i>
+          </button>
         </div>
       </div>
 
@@ -128,6 +131,26 @@
         </div>
       </aside>
 
+    </div>
+  </section>
+
+  <!-- ==================== COMMANDANT ==================== -->
+  <section id="screen-commander" class="screen">
+    <div class="cmdr-layout">
+      <header class="cmdr-top panel">
+        <button class="btn btn-ghost btn-sm" id="cmdr-back">◀ RETOUR</button>
+        <div class="cmdr-title">CHOISIS TON COMMANDANT</div>
+        <div class="cmdr-current">
+          <span class="label">ACTUEL</span>
+          <b id="cmdr-current-name">AUCUN</b>
+        </div>
+      </header>
+      <div class="cmdr-hint panel">
+        Une seule tour commandant par partie, mais elle est hyper puissante — et sa capacité de
+        commandement renforce <b>toutes</b> les tours de sa branche pour le reste de la partie.
+        Change de commandant à volonté entre deux parties.
+      </div>
+      <div class="cmdr-grid" id="cmdr-grid"></div>
     </div>
   </section>
 
@@ -213,6 +236,7 @@
           <div class="panel tower-panel" id="tower-panel" hidden>
             <div class="panel-head" id="tp-name">—</div>
             <div class="tp-stats" id="tp-stats"></div>
+            <div class="tp-cmdr-desc" id="tp-cmdr-desc" hidden></div>
             <div class="tp-target" id="tp-target-row">
               <span>CIBLAGE</span>
               <button class="btn btn-ghost btn-xs" id="tp-priority">PREMIER</button>

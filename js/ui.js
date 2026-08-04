@@ -4,7 +4,7 @@
 //  ou le moteur de repli tween.js).
 // ============================================================
 
-import { TOWERS, TOWER_ORDER, TARGET, PALETTE, TREE, BRANCHES, materialsForWave } from './config.js';
+import { TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_ORDER, TARGET, PALETTE, TREE, BRANCHES, materialsForWave } from './config.js';
 import { towerCost } from './towers.js';
 import tween from './tween.js';
 
@@ -153,6 +153,8 @@ export function renderMenu(save, treeSize) {
   $('#menu-kills').textContent = save.data.totalKills;
   $('#menu-nodes').textContent = `${save.unlocked.size} / ${treeSize}`;
   $('#tree-badge').textContent = save.materials;
+  const cmdr = COMMANDERS[save.commander];
+  $('#commander-badge').textContent = cmdr ? cmdr.name : 'AUCUN';
 
   const list = $('#menu-towers');
   list.innerHTML = TOWER_ORDER.map((id) => {
@@ -163,6 +165,34 @@ export function renderMenu(save, treeSize) {
       <span class="tg">${TARGET_LABEL[t.targets]}</span>
     </div>`;
   }).join('');
+}
+
+// ============================================================
+//  Commandant
+// ============================================================
+
+/** Grille de sélection des 20 commandants (un seul actif par partie). */
+export function renderCommanderGrid(save, onPick) {
+  const grid = $('#cmdr-grid');
+  grid.innerHTML = COMMANDER_ORDER.map((id) => {
+    const c = COMMANDERS[id];
+    const arche = BRANCHES.find((b) => b.id === c.archetype);
+    const on = save.commander === id;
+    return `<div class="cmdr-card ${on ? 'on' : ''}" data-cmdr="${id}" style="border-left-color:${c.accent}">
+      <div class="cmdr-card-head">
+        <span class="cmdr-card-name" style="color:${c.accent}">${c.name}</span>
+        <span class="cmdr-card-arche" style="color:${arche.color}">${GLYPHS[c.archetype]} ${arche.name}</span>
+      </div>
+      <p class="cmdr-card-desc">${c.desc}</p>
+      <div class="cmdr-card-foot">
+        <span class="cmdr-card-cost">${c.cost}</span>
+        <span class="cmdr-card-pick">${on ? 'SÉLECTIONNÉ' : 'CHOISIR'}</span>
+      </div>
+    </div>`;
+  }).join('');
+  $$('.cmdr-card').forEach((el) => {
+    el.addEventListener('click', () => onPick(el.dataset.cmdr));
+  });
 }
 
 /** Compteur qui roule jusqu'à sa valeur. */
@@ -202,14 +232,39 @@ export function buildShop(game, onPick) {
     btn.addEventListener('click', () => onPick(id));
     list.appendChild(btn);
   });
+
+  const cid = game.commanderChoice;
+  if (cid && COMMANDERS[cid]) {
+    const c = COMMANDERS[cid];
+    const btn = document.createElement('button');
+    btn.className = 'shop-item cmdr';
+    btn.dataset.tower = cid;
+    btn.style.borderLeftColor = c.accent;
+    btn.innerHTML = `
+      <span class="shop-glyph" style="color:${c.accent}">${GLYPHS[c.archetype]}</span>
+      <span class="shop-info">
+        <span class="shop-name">${c.name}</span>
+        <span class="shop-tags">COMMANDANT</span>
+      </span>
+      <span class="shop-cost" data-cost>${towerCost(cid, game.mods)}</span>`;
+    btn.title = c.desc;
+    btn.addEventListener('click', () => onPick(cid));
+    list.appendChild(btn);
+  }
 }
 
 export function refreshShop(game) {
   $$('.shop-item').forEach((el) => {
     const id = el.dataset.tower;
     const cost = towerCost(id, game.mods);
-    el.querySelector('[data-cost]').textContent = cost;
-    el.classList.toggle('poor', game.gold < cost);
+    if (COMMANDERS[id]) {
+      const deployed = game.towers.some((t) => t.isCommander);
+      el.querySelector('[data-cost]').textContent = deployed ? 'DÉPLOYÉ' : cost;
+      el.classList.toggle('poor', deployed || game.gold < cost);
+    } else {
+      el.querySelector('[data-cost]').textContent = cost;
+      el.classList.toggle('poor', game.gold < cost);
+    }
     el.classList.toggle('on', game.placing === id);
   });
 }
@@ -331,25 +386,29 @@ export function renderTowerPanel(game, tower) {
       ['PORTÉE', Math.round(s.range * 10) / 10],
       ['CIBLES', s.mask === TARGET.AIR ? 'AIR' : s.mask === TARGET.GROUND ? 'SOL' : 'SOL+AIR']
     ];
-  if (tower.id === 'sniper') {
+  if (tower.archetype === 'sniper') {
     rows.push(['CRITIQUE', Math.round(s.critChance * 100) + '% ×' + (Math.round(s.critMult * 10) / 10)]);
     rows.push(['PERÇAGE', Math.floor(s.pierce)]);
   }
-  if (tower.id === 'mortar') rows.push(['RAYON AoE', Math.round(s.splash * 10) / 10]);
-  if (tower.id === 'tesla') {
+  if (tower.archetype === 'mortar') rows.push(['RAYON AoE', Math.round(s.splash * 10) / 10]);
+  if (tower.archetype === 'tesla') {
     rows.push(['REBONDS', s.bounces]);
     rows.push(['CONSERVÉ', Math.round(s.bounceFalloff * 100) + '%']);
   }
-  if (tower.id === 'flame') {
+  if (tower.archetype === 'flame') {
     rows.push(['BRÛLURE', Math.round(s.burnDps) + '/s × ' + (Math.round(s.burnDur * 10) / 10) + 's']);
     rows.push(['CÔNE', Math.round(s.cone) + '°']);
   }
-  if (tower.id === 'aa') rows.push(['MISSILES', Math.max(1, Math.round(s.missiles))]);
-  if (tower.id === 'mg') rows.push(['RÉGIME', Math.round(tower.spin * 100) + '% (max ×' + (Math.round(s.spinMax * 100) / 100) + ')']);
+  if (tower.archetype === 'aa') rows.push(['MISSILES', Math.max(1, Math.round(s.missiles))]);
+  if (tower.archetype === 'mg') rows.push(['RÉGIME', Math.round(tower.spin * 100) + '% (max ×' + (Math.round(s.spinMax * 100) / 100) + ')']);
   if (tower.id !== 'sandbag') rows.push(['ÉLIMINATIONS', tower.kills]);
 
   $('#tp-stats').innerHTML = rows.map(([k, v]) =>
     `<div class="tp-stat"><span>${k}</span><b>${v}</b></div>`).join('');
+
+  const cmdrDesc = $('#tp-cmdr-desc');
+  cmdrDesc.hidden = !tower.isCommander;
+  if (tower.isCommander) cmdrDesc.textContent = 'CAPACITÉ DE COMMANDEMENT — ' + tower.def.desc;
 
   $('#tp-target-row').hidden = tower.id === 'sandbag';
   $('#tp-priority').textContent = {

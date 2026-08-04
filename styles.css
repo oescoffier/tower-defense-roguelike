@@ -534,6 +534,61 @@ b { font-weight: 700; }
 .detail-status { margin-top: 10px; font-size: 0.72rem; text-align: center; color: var(--muted); min-height: 1.4em; }
 
 /* ============================================================
+   COMMANDANT
+   ============================================================ */
+.cmdr-layout {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.cmdr-top { display: flex; align-items: center; gap: 18px; padding: 10px 14px; flex: none; }
+.cmdr-title { font-family: var(--font-display); font-size: 1.7rem; letter-spacing: 0.1em; }
+.cmdr-current { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.cmdr-current .label { font-size: 0.64rem; letter-spacing: 0.24em; color: var(--muted); }
+.cmdr-current b { font-family: var(--font-display); font-size: 1.4rem; color: var(--gold); }
+
+.cmdr-hint { font-size: 0.76rem; line-height: 1.5; color: var(--muted); padding: 10px 14px; flex: none; }
+.cmdr-hint b { color: var(--text); }
+
+.cmdr-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.cmdr-card {
+  background: var(--surface-2);
+  border: var(--border);
+  border-left-width: 5px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  cursor: pointer;
+  transition: transform 0.08s steps(2), box-shadow 0.08s steps(2), background 0.12s;
+}
+.cmdr-card:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--line); }
+.cmdr-card.on { background: var(--surface-3); box-shadow: 4px 4px 0 var(--gold); }
+
+.cmdr-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cmdr-card-name { font-family: var(--font-display); font-size: 1.12rem; letter-spacing: 0.04em; }
+.cmdr-card-arche { font-size: 0.58rem; letter-spacing: 0.12em; white-space: nowrap; }
+
+.cmdr-card-desc { font-size: 0.68rem; color: var(--muted); line-height: 1.45; flex: 1; margin: 0; }
+
+.cmdr-card-foot { display: flex; align-items: center; justify-content: space-between; }
+.cmdr-card-cost { font-family: var(--font-display); color: var(--gold); font-size: 1.15rem; }
+.cmdr-card-pick { font-size: 0.6rem; letter-spacing: 0.12em; padding: 3px 7px; border: 1px solid var(--line); }
+.cmdr-card.on .cmdr-card-pick { background: var(--gold); color: var(--text-dark); border-color: var(--text-dark); }
+
+/* ============================================================
    JEU
    ============================================================ */
 .game-layout {
@@ -765,6 +820,13 @@ b { font-weight: 700; }
 .shop-item.poor { opacity: 0.42; }
 .shop-item.poor:hover { transform: none; }
 
+.shop-item.cmdr {
+  border-left-width: 5px;
+  background: linear-gradient(90deg, rgba(240, 210, 75, 0.1), var(--surface) 70%);
+}
+.shop-item.cmdr .shop-name { color: var(--gold); }
+.shop-item.cmdr .shop-tags { color: var(--gold); letter-spacing: 0.16em; }
+
 .shop-glyph {
   width: 34px; height: 34px;
   display: grid; place-items: center;
@@ -800,6 +862,13 @@ b { font-weight: 700; }
 .tp-stat span { color: var(--muted); letter-spacing: 0.08em; }
 .tp-stat b { font-family: var(--font-display); font-size: 1rem; }
 .tp-stat b.up { color: var(--ok); }
+
+.tp-cmdr-desc[hidden] { display: none; }
+.tp-cmdr-desc {
+  font-size: 0.68rem; line-height: 1.5; color: var(--muted);
+  padding: 8px 9px; background: var(--surface); border-left: 3px solid var(--gold);
+  margin-bottom: 10px;
+}
 
 .tp-target { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; font-size: 0.64rem; letter-spacing: 0.16em; color: var(--muted); }
 .tp-actions { display: grid; grid-template-columns: 1fr auto; gap: 7px; }

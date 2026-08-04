@@ -3,7 +3,7 @@
 //  × modificateurs de l'arbre), ciblage, tir et rendu.
 // ============================================================
 
-import { TOWERS, TARGET, PALETTE, GRID, PRIORITY } from './config.js';
+import { TOWERS, COMMANDERS, TARGET, PALETTE, GRID, PRIORITY } from './config.js';
 import { Weapons, enemiesInRange, selectTarget } from './combat.js';
 
 const C = GRID.cell;
@@ -12,8 +12,12 @@ const TAU = Math.PI * 2;
 /** Lecture d'un modificateur accumulé (0 si absent). */
 export const m = (mods, key) => mods[key] || 0;
 
-/** Coût de construction, modificateurs inclus. */
+/** Définition d'une tour ou d'un commandant, par id. */
+export function getTowerDef(id) { return COMMANDERS[id] || TOWERS[id]; }
+
+/** Coût de construction, modificateurs inclus (les commandants ont un coût fixe). */
 export function towerCost(id, mods) {
+  if (COMMANDERS[id]) return COMMANDERS[id].cost;
   const base = TOWERS[id].cost;
   const mult = Math.max(0.4, 1 + m(mods, `${id}.cost`));
   return Math.max(10, Math.round(base * mult));
@@ -25,7 +29,11 @@ export class Tower {
   constructor(id, gx, gy, game) {
     this.uid = tuid++;
     this.id = id;
-    this.def = TOWERS[id];
+    this.isCommander = !!COMMANDERS[id];
+    this.def = getTowerDef(id);
+    // Type d'arme réel (dispatch combat.js + rendu) : pour un commandant,
+    // c'est l'archétype qu'il incarne, distinct de son identifiant unique.
+    this.archetype = this.isCommander ? this.def.archetype : id;
     this.gx = gx;
     this.gy = gy;
     this.px = game.grid.cx(gx);
@@ -56,7 +64,7 @@ export class Tower {
   // ----------------------------------------------------------
   recompute(mods) {
     const d = this.def;
-    const id = this.id;
+    const id = this.archetype;
 
     // Multiplicateurs cumulés des améliorations achetées
     const up = { damage: 1, rate: 1, range: 1, splash: 1, burnDps: 1, burnDur: 1, cone: 1, turnRate: 1, flakSplash: 1, bounceRange: 1 };
@@ -120,7 +128,7 @@ export class Tower {
 
   get dps() {
     const s = this.stats;
-    switch (this.id) {
+    switch (this.archetype) {
       case 'mg': return s.damage * s.rate * ((1 + s.spinMax) / 2);
       case 'sniper': return s.damage * s.rate * (1 + s.critChance * (s.critMult - 1)) * (1 + s.pierce * 0.5);
       case 'mortar': return s.damage * s.rate * 2.2;
@@ -160,6 +168,9 @@ export class Tower {
     this.priority = PRIORITY[(i + dir + PRIORITY.length) % PRIORITY.length];
   }
 
+  /** Niveau utilisé pour la taille du rendu : un commandant se dessine toujours en format maximal. */
+  get visualLevel() { return this.isCommander ? 4 : this.level; }
+
   // ----------------------------------------------------------
   update(dt, game) {
     this.placeAnim = Math.min(1, this.placeAnim + dt * 3.2);
@@ -178,7 +189,7 @@ export class Tower {
     this.firing = !!target;
 
     // Montée / descente en régime (mitraillette)
-    if (this.id === 'mg') {
+    if (this.archetype === 'mg') {
       const s = this.stats;
       if (target) this.spin = Math.min(1, this.spin + dt / s.spinUp);
       else this.spin = Math.max(0, this.spin - dt / s.spinDown);
@@ -188,19 +199,19 @@ export class Tower {
     if (target) {
       const want = Math.atan2(target.y - this.py, target.x - this.px);
       let diff = ((want - this.angle + Math.PI * 3) % TAU) - Math.PI;
-      const turn = (this.id === 'sniper' ? 5 : this.id === 'mortar' ? 3.5 : 11) * dt;
+      const turn = (this.archetype === 'sniper' ? 5 : this.archetype === 'mortar' ? 3.5 : 11) * dt;
       this.angle += Math.max(-turn, Math.min(turn, diff));
     }
 
     // Cadence
     let rate = this.stats.rate;
-    if (this.id === 'mg') rate *= 1 + (this.stats.spinMax - 1) * this.spin;
+    if (this.archetype === 'mg') rate *= 1 + (this.stats.spinMax - 1) * this.spin;
     this.cooldown -= dt;
     if (target && this.cooldown <= 0) {
       const aimed = Math.abs(((Math.atan2(target.y - this.py, target.x - this.px) - this.angle + Math.PI * 3) % TAU) - Math.PI);
-      if (aimed < 0.35 || this.id === 'tesla' || this.id === 'mortar') {
+      if (aimed < 0.35 || this.archetype === 'tesla' || this.archetype === 'mortar') {
         this.cooldown = 1 / rate;
-        Weapons[this.id](this, game, target);
+        Weapons[this.archetype](this, game, target);
       }
     }
     if (this.cooldown < -1) this.cooldown = 0;
@@ -218,33 +229,94 @@ export class Tower {
     const ease = 1 - Math.pow(1 - this.placeAnim, 3);
     const scale = 0.4 + 0.6 * ease;
     const accent = this.def.accent;
-    const half = C / 2;
+    const lvl = this.level;
+    const vis = this.visualLevel;
+    const maxLvl = this.def.upgrades.length;
+    const elite = this.isCommander || (maxLvl > 0 && lvl >= maxLvl);
 
     ctx.save();
     ctx.translate(this.px, this.py);
+
+    // --- Aura d'élite : halo pulsant réservé aux commandants et tours au niveau maximum ---
+    if (elite) {
+      const pulse = 0.5 + Math.sin(time * 2.4) * 0.22;
+      ctx.save();
+      ctx.globalAlpha = ease * pulse * 0.4;
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(0, 0, C * 0.6 + Math.sin(time * 2.4) * 2, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+
     ctx.scale(scale, scale);
     ctx.globalAlpha = ease;
 
-    // --- Socle néo-brutaliste : ombre dure décalée ---
-    const s = C - 8;
+    // --- Socle néo-brutaliste : ombre dure décalée, s'épaissit avec le niveau ---
+    const s = (C - 8) + vis * 3.4;
+    const shadow = 4 + vis * 1.1;
     ctx.fillStyle = accent;
-    ctx.fillRect(-s / 2 + 4, -s / 2 + 4, s, s);
+    ctx.fillRect(-s / 2 + shadow, -s / 2 + shadow, s, s);
     ctx.fillStyle = PALETTE.surface2;
     ctx.fillRect(-s / 2, -s / 2, s, s);
-    ctx.strokeStyle = PALETTE.line;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = elite ? PALETTE.gold : PALETTE.line;
+    ctx.lineWidth = 2 + vis * 0.7;
     ctx.strokeRect(-s / 2, -s / 2, s, s);
 
-    // Barres de niveau
-    for (let i = 0; i < this.level; i++) {
-      ctx.fillStyle = accent;
-      ctx.fillRect(-s / 2 + 3 + i * 6, s / 2 - 6, 4, 3);
+    // Plaques de blindage aux coins — niveau 2+ (toujours présentes sur un commandant)
+    if (vis >= 2) {
+      const cs = 6 + (vis - 1) * 1.6;
+      for (const [cx, cy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        ctx.save();
+        ctx.translate(cx * (s / 2 - cs / 2 - 1), cy * (s / 2 - cs / 2 - 1));
+        ctx.fillStyle = accent;
+        ctx.fillRect(-cs / 2, -cs / 2, cs, cs);
+        ctx.strokeStyle = PALETTE.line;
+        ctx.lineWidth = 1.4;
+        ctx.strokeRect(-cs / 2, -cs / 2, cs, cs);
+        ctx.restore();
+      }
     }
 
-    // --- Tourelle ---
+    if (this.isCommander) {
+      // Insigne de commandant : étoile dorée à la place des chevrons de niveau
+      const cy = -s / 2 - 9;
+      ctx.fillStyle = PALETTE.gold;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + i * Math.PI / 5;
+        const rr = i % 2 ? 4 : 9;
+        ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, cy + Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#090909';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    } else if (lvl > 0) {
+      // Chevrons de rang — remplacent les anciennes petites barres, dorés au niveau max
+      const cw = 8, gap = 2.5;
+      const totalW = lvl * cw + (lvl - 1) * gap;
+      ctx.fillStyle = elite ? PALETTE.gold : accent;
+      for (let i = 0; i < lvl; i++) {
+        const cx = -totalW / 2 + i * (cw + gap) + cw / 2;
+        const cy = -s / 2 - 7;
+        ctx.beginPath();
+        ctx.moveTo(cx - cw / 2, cy + 5);
+        ctx.lineTo(cx, cy - 4);
+        ctx.lineTo(cx + cw / 2, cy + 5);
+        ctx.lineTo(cx, cy + 1.5);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // --- Tourelle : grandit avec le niveau pour bien marquer la montée en puissance ---
     ctx.rotate(this.angle);
-    const rec = this.recoil * (this.id === 'sniper' ? 7 : 3);
+    const rec = this.recoil * (this.archetype === 'sniper' ? 7 : 3);
     ctx.translate(-rec, 0);
+    const turretScale = 1 + vis * 0.12;
+    ctx.scale(turretScale, turretScale);
     this._drawTurret(ctx, time);
 
     ctx.restore();
@@ -266,7 +338,7 @@ export class Tower {
         ctx.fillStyle = accent;
         ctx.fill();
         // cône du lance-flamme
-        if (this.id === 'flame') {
+        if (this.archetype === 'flame') {
           const halfC = (this.stats.cone * Math.PI / 180) / 2;
           ctx.globalAlpha = 0.16;
           ctx.beginPath();
@@ -299,9 +371,9 @@ export class Tower {
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#090909';
 
-    switch (this.id) {
+    switch (this.archetype) {
       case 'mg': {
-        const barrels = 1 + this.level;
+        const barrels = 1 + this.visualLevel;
         const spinRot = this.spin * time * 14;
         ctx.save();
         ctx.rotate(0);
@@ -309,8 +381,8 @@ export class Tower {
         for (let i = 0; i < barrels; i++) {
           const off = (i - (barrels - 1) / 2) * 4.2;
           const wob = Math.cos(spinRot + i * 2) * 1.4 * this.spin;
-          ctx.fillRect(4, off - 1.4 + wob, 18 + this.level * 2, 2.8);
-          ctx.strokeRect(4, off - 1.4 + wob, 18 + this.level * 2, 2.8);
+          ctx.fillRect(4, off - 1.4 + wob, 18 + this.visualLevel * 2, 2.8);
+          ctx.strokeRect(4, off - 1.4 + wob, 18 + this.visualLevel * 2, 2.8);
         }
         ctx.restore();
         ctx.fillStyle = A;
@@ -328,8 +400,8 @@ export class Tower {
       }
       case 'sniper': {
         ctx.fillStyle = PALETTE.text;
-        ctx.fillRect(2, -2, 26 + this.level * 3, 4);
-        ctx.strokeRect(2, -2, 26 + this.level * 3, 4);
+        ctx.fillRect(2, -2, 26 + this.visualLevel * 3, 4);
+        ctx.strokeRect(2, -2, 26 + this.visualLevel * 3, 4);
         ctx.fillStyle = A;
         ctx.fillRect(-9, -6, 14, 12);
         ctx.strokeStyle = PALETTE.line;
@@ -355,10 +427,10 @@ export class Tower {
         ctx.save();
         ctx.rotate(-0.5);
         ctx.fillStyle = PALETTE.text;
-        ctx.fillRect(0, -4.5, 20 + this.level * 2, 9);
-        ctx.strokeRect(0, -4.5, 20 + this.level * 2, 9);
+        ctx.fillRect(0, -4.5, 20 + this.visualLevel * 2, 9);
+        ctx.strokeRect(0, -4.5, 20 + this.visualLevel * 2, 9);
         ctx.fillStyle = '#090909';
-        ctx.fillRect(16 + this.level * 2, -3.5, 4, 7);
+        ctx.fillRect(16 + this.visualLevel * 2, -3.5, 4, 7);
         ctx.restore();
         ctx.fillStyle = A;
         ctx.beginPath();
@@ -374,7 +446,7 @@ export class Tower {
         ctx.strokeStyle = PALETTE.line;
         ctx.strokeRect(-5, -3, 10, 12);
         // bobines
-        for (let i = 0; i < 3 + this.level; i++) {
+        for (let i = 0; i < 3 + this.visualLevel; i++) {
           ctx.strokeStyle = i % 2 ? A : PALETTE.line;
           ctx.lineWidth = 1.6;
           ctx.beginPath();
@@ -401,13 +473,13 @@ export class Tower {
       }
       case 'flame': {
         ctx.fillStyle = PALETTE.text;
-        ctx.fillRect(2, -3.5, 16 + this.level, 7);
-        ctx.strokeRect(2, -3.5, 16 + this.level, 7);
+        ctx.fillRect(2, -3.5, 16 + this.visualLevel, 7);
+        ctx.strokeRect(2, -3.5, 16 + this.visualLevel, 7);
         ctx.fillStyle = A;
         ctx.beginPath();
-        ctx.moveTo(18 + this.level, -5.5);
-        ctx.lineTo(24 + this.level, 0);
-        ctx.lineTo(18 + this.level, 5.5);
+        ctx.moveTo(18 + this.visualLevel, -5.5);
+        ctx.lineTo(24 + this.visualLevel, 0);
+        ctx.lineTo(18 + this.visualLevel, 5.5);
         ctx.closePath(); ctx.fill(); ctx.stroke();
         // réservoirs
         ctx.fillStyle = A;
@@ -419,7 +491,7 @@ export class Tower {
         // veilleuse
         ctx.fillStyle = PALETTE.fire;
         ctx.globalAlpha = 0.6 + Math.random() * 0.4;
-        ctx.beginPath(); ctx.arc(24 + this.level, 0, 2.4, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(24 + this.visualLevel, 0, 2.4, 0, TAU); ctx.fill();
         ctx.globalAlpha = 1;
         break;
       }
@@ -482,8 +554,9 @@ export class Tower {
 /** Fantôme de placement (suivi du curseur, aimanté à la grille). */
 export function drawGhost(ctx, id, gx, gy, valid, time, grid, mods) {
   const px = grid.cx(gx), py = grid.cy(gy);
-  const def = TOWERS[id];
-  const range = def.range * (1 + m(mods, `${id}.range`)) * C;
+  const def = getTowerDef(id);
+  const modKey = COMMANDERS[id] ? def.archetype : id;
+  const range = def.range * (1 + m(mods, `${modKey}.range`)) * C;
   const col = valid ? def.accent : PALETTE.danger;
 
   ctx.save();
