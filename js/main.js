@@ -682,7 +682,7 @@ function fireCommanderPulse(cmdr, ab, game) {
       for (const e of game.enemies) {
         if (e.dead) continue;
         const dx = e.x - cmdr.px, dy = e.y - cmdr.py;
-        if (dx * dx + dy * dy <= r2) e.stunUntil = Math.max(e.stunUntil, game.time + ab.dur);
+        if (dx * dx + dy * dy <= r2) e.applyStun(ab.dur, game);
       }
       game.vfx.ring(cmdr.px, cmdr.py, 4, ab.radius * GRID.cell, 0.45, cmdr.def.accent, 5);
       game.vfx.addShake(1.5);

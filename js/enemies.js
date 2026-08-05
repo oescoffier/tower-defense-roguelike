@@ -47,6 +47,8 @@ export class Enemy {
     this.slowUntil = 0;
     this.slowAmount = 0;
     this.stunUntil = 0;
+    this.stunAccum = 0;       // temps étourdi d'affilée (remis à 0 dès que ça s'arrête)
+    this.stunImmuneUntil = 0; // anti-stunlock : immunité temporaire après un étourdissement trop long
 
     // Déplacement
     if (this.air) {
@@ -132,6 +134,19 @@ export class Enemy {
     }
 
     if (this.dead) return;
+
+    // --- Anti-stunlock : 5s d'étourdissement d'affilée donnent 1s d'immunité ---
+    if (game.time < this.stunUntil) {
+      this.stunAccum += dt;
+      if (this.stunAccum >= 5) {
+        this.stunUntil = game.time;           // coupe l'étourdissement en cours
+        this.stunImmuneUntil = game.time + 1; // ignore tout nouveau stun pendant 1s
+        this.stunAccum = 0;
+        if (game.vfx) game.vfx.ring(this.x, this.y, 2, this.radius * 2.2, 0.35, '#ffffff', 2);
+      }
+    } else {
+      this.stunAccum = 0;
+    }
 
     // --- Vitesse effective ---
     let speed = this.baseSpeed;
@@ -287,6 +302,17 @@ export class Enemy {
       this.slowAmount = Math.max(this.slowAmount, amount);
       this.slowUntil = Math.max(this.slowUntil, game.time + dur);
     }
+  }
+
+  /**
+   * Étourdit l'ennemi — sauf s'il vient tout juste d'être libéré d'un
+   * étourdissement trop long (voir stunImmuneUntil dans update()) : point de
+   * passage unique, pour qu'aucune source de stun ne puisse contourner
+   * l'anti-stunlock en écrivant stunUntil directement.
+   */
+  applyStun(dur, game) {
+    if (game && game.time < this.stunImmuneUntil) return;
+    this.stunUntil = Math.max(this.stunUntil, game.time + dur);
   }
 
   get burning() { return this.burns.length > 0; }

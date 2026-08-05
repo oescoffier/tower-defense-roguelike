@@ -349,7 +349,7 @@ export function explode(game, x, y, radiusPx, damage, opts = {}) {
     };
     if (opts.source) hit(opts.source, e, game, damage * falloff, dmgOpts);
     else e.damage(damage * falloff, dmgOpts, game);
-    if (opts.stun) e.stunUntil = Math.max(e.stunUntil, game.time + opts.stun);
+    if (opts.stun) e.applyStun(opts.stun, game);
     if (opts.pull) {
       const dd = Math.hypot(e.x - x, e.y - y) || 1;
       e.x += ((x - e.x) / dd) * Math.min(18, radiusPx * 0.25);

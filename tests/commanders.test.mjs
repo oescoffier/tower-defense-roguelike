@@ -125,7 +125,7 @@ function mirrorFirePulse(cmdr, ab, game) {
       for (const e of game.enemies) {
         if (e.dead) continue;
         const dx = e.x - cmdr.px, dy = e.y - cmdr.py;
-        if (dx * dx + dy * dy <= r2) { e.stunUntil = Math.max(e.stunUntil, game.time + ab.dur); any = true; }
+        if (dx * dx + dy * dy <= r2) { e.applyStun(ab.dur, game); any = true; }
       }
       return any;
     }
