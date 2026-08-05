@@ -821,7 +821,7 @@ export const KEYSTONES = {
 export const VARIANTS = {
   mg: [
     {
-      id: 'mg_rate', name: 'ROTATIVE', short: 'CADENCE', icon: '»', accent: '#0d67ff',
+      id: 'mg_rate', name: 'ROTATIVE', short: 'CADENCE', icon: '»', accent: '#4da3ff',
       desc: 'Cadence quasi doublée et montée en régime éclair, mais des balles bien plus légères.',
       mult: { rate: 1.9, damage: 0.72, spinUp: 0.55 }
     },
@@ -844,7 +844,7 @@ export const VARIANTS = {
       mult: { rate: 2.1, damage: 0.6 }
     },
     {
-      id: 'sniper_dmg', name: 'ANTI-MATÉRIEL', short: 'DÉGÂTS', icon: '✦', accent: '#e46363',
+      id: 'sniper_dmg', name: 'ANTI-MATÉRIEL', short: 'DÉGÂTS', icon: '✦', accent: '#b3261e',
       desc: 'Un coup, un trou : dégâts massifs, traverse deux cibles de plus, mais tire lentement.',
       mult: { damage: 2.5, rate: 0.62 }, add: { pierce: 2 }, cost: 1.2
     },
@@ -863,7 +863,7 @@ export const VARIANTS = {
       mult: { rate: 2.0, damage: 0.68, arcTime: 0.7 }
     },
     {
-      id: 'mortar_nuke', name: 'OGIVE NUCLÉAIRE', short: 'NUCLÉAIRE', icon: '☢', accent: '#f0d24b',
+      id: 'mortar_nuke', name: 'OGIVE NUCLÉAIRE', short: 'NUCLÉAIRE', icon: '☢', accent: '#c6e600',
       desc: 'Très lente, mais dévastatrice : énorme explosion, puis une zone irradiée qui continue à ronger tout ce qui la traverse.',
       mult: { damage: 4.6, rate: 0.32, splash: 2.0, arcTime: 1.9 },
       flags: { nuke: true }, cost: 1.7
@@ -900,7 +900,7 @@ export const VARIANTS = {
       mult: { range: 1.95, cone: 0.65 }
     },
     {
-      id: 'flame_nova', name: 'BRASIER', short: 'TOUT AUTOUR', icon: '❋', accent: '#ff7a29',
+      id: 'flame_nova', name: 'BRASIER', short: 'TOUT AUTOUR', icon: '❋', accent: '#ff3d3d',
       desc: 'Ne vise plus : brûle en permanence tout ce qui l\'entoure, sur 360°. À placer au cœur du trafic.',
       mult: { range: 0.88, damage: 0.8 }, set: { cone: 360 },
       flags: { omni: true }, cost: 1.25
@@ -919,7 +919,7 @@ export const VARIANTS = {
       mult: { damage: 0.52 }, add: { missiles: 2 }
     },
     {
-      id: 'aa_multilock', name: 'VERROUILLAGE MULTIPLE', short: 'MULTI-LOCK', icon: '⊹', accent: '#58b7e9',
+      id: 'aa_multilock', name: 'VERROUILLAGE MULTIPLE', short: 'MULTI-LOCK', icon: '⊹', accent: '#b878ff',
       desc: 'Chaque missile d\'une salve part sur une cible différente : aucun tir gaspillé sur un mourant.',
       mult: { damage: 0.8 }, add: { missiles: 1 }, flags: { multiLock: true }
     },
@@ -943,9 +943,12 @@ export const VARIANT_BY_ID = (() => {
   return map;
 })();
 
-// Anneaux qui portent les nœuds « VARIANTE » : très loin du centre, il
-// faut réellement creuser une branche pour ouvrir ses versions.
-export const VARIANT_RINGS = [7, 13, 20];
+// Anneau qui porte les 3 nœuds « VARIANTE » de chaque branche — un seul et
+// même anneau, à peu près au milieu des 22 (0..21), pour que les 3 versions
+// d'une tourelle soient toujours à égale distance et au même palier. Avant,
+// elles étaient réparties sur 3 anneaux très éloignés (7/13/20) : une
+// variante s'ouvrait très vite, les deux autres restaient hors de portée.
+export const VARIANT_RING = 10;
 
 // ============================================================
 //  SYMBOLES DES NŒUDS

@@ -7,6 +7,7 @@
     "test:commanders": "node tests/commanders.test.mjs",
     "test:grid": "node tests/grid.test.mjs",
     "test:craters": "node tests/craters.test.mjs",
-    "test": "npm run test:commanders && npm run test:grid && npm run test:craters"
+    "test:variants": "node tests/variants.test.mjs",
+    "test": "npm run test:commanders && npm run test:grid && npm run test:craters && npm run test:variants"
   }
 }

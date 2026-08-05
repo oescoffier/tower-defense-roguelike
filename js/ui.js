@@ -6,7 +6,7 @@
 
 import {
   TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_ORDER, COMMANDER_RANK_KILLS,
-  TARGET, PALETTE, TREE, BRANCHES, VARIANTS, VARIANT_ORDER, VARIANT_RINGS,
+  TARGET, PALETTE, TREE, BRANCHES, VARIANTS, VARIANT_ORDER, VARIANT_RING,
   materialsForWave
 } from './config.js';
 import { towerCost } from './towers.js';
@@ -629,11 +629,11 @@ export function renderLoadout(save, isUnlocked, onPick) {
         </span>
       </button>`;
 
-    const opts = VARIANTS[arche].map((v, i) => {
+    const ring = VARIANT_RING + 1;
+    const opts = VARIANTS[arche].map((v) => {
       const ok = isUnlocked(v.id);
       if (ok) unlockedCount++;
       const on = chosen === v.id;
-      const ring = VARIANT_RINGS[i] + 1;
       return `
       <button class="lo-opt ${on ? 'on' : ''} ${ok ? '' : 'locked'}"
               data-arche="${arche}" data-variant="${v.id}" ${ok ? '' : 'disabled'}>

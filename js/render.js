@@ -77,7 +77,7 @@ export class Renderer {
 
     // Fantôme de placement sous les entités
     if (game.placing && game.hover) {
-      drawGhost(ctx, game.placing, game.hover.x, game.hover.y, game.placeValid, t, game.grid, game.mods);
+      drawGhost(ctx, game.placing, game.hover.x, game.hover.y, game.placeValid, t, game.grid, game.mods, game.loadout);
     }
 
     // --- Tours (triées par y pour un léger effet de profondeur) ---

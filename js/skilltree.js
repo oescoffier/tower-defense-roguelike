@@ -7,7 +7,7 @@
 
 import {
   TREE, BRANCHES, BRANCH_STATS, NOTABLES, KEYSTONES, PALETTE,
-  VARIANTS, VARIANT_RINGS, iconForKey
+  VARIANTS, VARIANT_RING, iconForKey
 } from './config.js';
 import { Rng, hashStr } from './rng.js';
 
@@ -75,9 +75,18 @@ export function buildTree() {
       const baseR = TREE.ring0 + r * TREE.ringStep;
       const ring = [];
       const keystoneSlot = KEYSTONE_RINGS.includes(r) ? Math.floor(n / 2) : -1;
-      // Un nœud VARIANTE par anneau reserve, decale du keystone.
-      const variantSlot = (branchVariants.length && VARIANT_RINGS.includes(r))
-        ? Math.max(0, Math.floor(n / 2) - 2) : -1;
+      // Les 3 nœuds VARIANTE d'une branche partagent le même anneau (au
+      // même palier, donc), répartis à intervalles réguliers dans le
+      // secteur pour ne pas se chevaucher (décalés si deux tombent sur le
+      // même index par arrondi sur un petit anneau).
+      const variantSlots = [];
+      if (branchVariants.length && r === VARIANT_RING) {
+        for (let k = 0; k < branchVariants.length; k++) {
+          let idx = Math.round((k + 1) / (branchVariants.length + 1) * n);
+          while (variantSlots.includes(idx) && idx < n - 1) idx++;
+          variantSlots.push(Math.min(n - 1, Math.max(0, idx)));
+        }
+      }
 
       for (let i = 0; i < n; i++) {
         const tSlot = n > 1 ? (i + 0.5) / n : 0.5;
@@ -88,7 +97,7 @@ export function buildTree() {
         const id = `${branch.id}-${r}-${i}`;
         let type, name, desc, effects, cost, icon, variantId;
 
-        if (i === variantSlot && variantUsed < branchVariants.length) {
+        if (i === variantSlots[variantUsed] && variantUsed < branchVariants.length) {
           // Nœud VARIANTE : ouvre une version alternative de la tourelle,
           // sélectionnable ensuite depuis l'écran de préparation.
           const vr = branchVariants[variantUsed++];

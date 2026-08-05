@@ -282,7 +282,8 @@ export class Tower {
   draw(ctx, time, selected, hovered) {
     const ease = 1 - Math.pow(1 - this.placeAnim, 3);
     const scale = 0.4 + 0.6 * ease;
-    const accent = this.def.accent;
+    // Une variante redéfinit l'identité visuelle de la tour (sa propre couleur).
+    const accent = (this.variant && this.variant.accent) || this.def.accent;
     const lvl = this.level;
     const maxLvl = this.def.upgrades.length;
     const elite = this.isCommander || (maxLvl > 0 && lvl >= maxLvl);
@@ -329,6 +330,26 @@ export class Tower {
         ctx.strokeRect(-cs / 2, -cs / 2, cs, cs);
         ctx.restore();
       }
+    }
+
+    // Pastille de variante : icône de la version choisie, sous le socle —
+    // indépendante de l'insigne de rang/commandant posé au-dessus.
+    if (this.variant) {
+      const by = s / 2 + 8;
+      ctx.save();
+      ctx.fillStyle = this.variant.accent;
+      ctx.beginPath();
+      ctx.arc(0, by, 7.5, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = '#090909';
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+      ctx.fillStyle = '#090909';
+      ctx.font = '9px "Space Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(this.variant.icon, 0, by + 0.5);
+      ctx.restore();
     }
 
     if (this.isCommander) {
@@ -435,7 +456,7 @@ export class Tower {
   }
 
   _drawTurret(ctx, time) {
-    const A = this.def.accent;
+    const A = (this.variant && this.variant.accent) || this.def.accent;
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#090909';
 
@@ -620,12 +641,14 @@ export class Tower {
 }
 
 /** Fantôme de placement (suivi du curseur, aimanté à la grille). */
-export function drawGhost(ctx, id, gx, gy, valid, time, grid, mods) {
+export function drawGhost(ctx, id, gx, gy, valid, time, grid, mods, loadout) {
   const px = grid.cx(gx), py = grid.cy(gy);
   const def = getTowerDef(id);
   const modKey = COMMANDERS[id] ? def.archetype : id;
   const range = def.range * (1 + m(mods, `${modKey}.range`)) * C;
-  const col = valid ? def.accent : PALETTE.danger;
+  const variant = !COMMANDERS[id] ? variantFor(id, loadout) : null;
+  const accent = (variant && variant.accent) || def.accent;
+  const col = valid ? accent : PALETTE.danger;
 
   ctx.save();
   // portée
