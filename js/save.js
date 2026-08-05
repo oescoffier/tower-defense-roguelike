@@ -16,7 +16,8 @@ const DEFAULTS = () => ({
   onboardingSeen: false,
   tutorialDone: false,
   tutorialRewarded: false,
-  settings: { speed: 1, shake: true }
+  loadout: {},          // archetype -> id de variante retenue
+  settings: { speed: 1, shake: true, autoWave: false }
 });
 
 export class Save {
@@ -34,6 +35,18 @@ export class Save {
 
   get shakeEnabled() { return this.data.settings.shake !== false; }
   setShakeEnabled(v) { this.data.settings.shake = !!v; this.persist(); }
+
+  get autoWave() { return !!this.data.settings.autoWave; }
+  setAutoWave(v) { this.data.settings.autoWave = !!v; this.persist(); }
+
+  /** Variantes retenues pour la prochaine partie, memorisees d'une partie a l'autre. */
+  get loadout() { return this.data.loadout || (this.data.loadout = {}); }
+  setVariant(archetype, variantId) {
+    if (!this.data.loadout) this.data.loadout = {};
+    if (variantId) this.data.loadout[archetype] = variantId;
+    else delete this.data.loadout[archetype];
+    this.persist();
+  }
 
   get onboardingSeen() { return !!this.data.onboardingSeen; }
   markOnboardingSeen() { this.data.onboardingSeen = true; this.persist(); }

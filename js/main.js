@@ -4,7 +4,7 @@
 
 import {
   STATE, GRID, ECONOMY, WAVE, TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_RANK_KILLS, PALETTE, TARGET,
-  materialsForWave
+  VARIANT_ORDER, VARIANT_BY_ID, materialsForWave
 } from './config.js';
 import { Grid } from './grid.js';
 import { Enemy } from './enemies.js';
@@ -52,7 +52,8 @@ const game = {
   waveRunner: null,
   waveRunning: false,
   waveData: null,
-  prepLeft: 0,
+  autoWave: false,       // enchaînement automatique des vagues
+  autoLeft: 0,           // répit restant avant la vague suivante
   stormTimer: 0,
   baseHitFlash: 0,
   freeTypes: new Set(),
@@ -84,7 +85,17 @@ const game = {
     this.kills++;
     this.vfx.death(e);
 
-    const gain = Math.round(e.gold * (1 + (this.mods['player.goldPerKill'] || 0)));
+    let gain = Math.round(e.gold * (1 + (this.mods['player.goldPerKill'] || 0)));
+    if (e.boss && this.mods['player.bossBounty']) {
+      gain = Math.round(gain * (1 + this.mods['player.bossBounty']));
+    }
+    // BUTIN DE GUERRE : prime sur la première élimination de chaque vague.
+    if (!this.firstKillDone && this.mods['player.firstBlood']) {
+      this.firstKillDone = true;
+      const bonus = Math.round(this.mods['player.firstBlood']);
+      gain += bonus;
+      this.vfx.floatText(e.x, e.y - 34, `PREMIER SANG +${bonus}`, PALETTE.gold, 15, 1.1);
+    }
     this.gold += gain;
     this.vfx.coin(e.x, e.y, GRID.w * 0.42, -30);
 
@@ -126,6 +137,15 @@ const game = {
   },
 
   onEnemyLeaked(e) {
+    // BOUCLIER DE SECTEUR : la première brèche de chaque vague est absorbée.
+    if (!this.leakShieldUsed && this.mods['player.leakShield']) {
+      this.leakShieldUsed = true;
+      const b0 = this.grid;
+      this.vfx.ring(b0.cx(b0.base.x), b0.cy(b0.base.y), 8, 110, 0.6, PALETTE.accent, 5);
+      this.vfx.floatText(b0.cx(b0.base.x), b0.cy(b0.base.y) - 34, 'ABSORBÉ', PALETTE.accent, 20, 1.2);
+      UI.toast('<b>BOUCLIER DE SECTEUR</b><br>Brèche absorbée sans dégât', 'good', 2400);
+      return;
+    }
     this.lives -= e.leak;
     this.baseHitFlash = 1;
     this.vfx.addShake(5);
@@ -155,6 +175,37 @@ let activeBranch = -1;
 // ============================================================
 //  Cycle de partie
 // ============================================================
+
+/**
+ * Variante POSTE DE COMMANDEMENT : toutes les N vagues, chaque tour de ce
+ * type rend de l'intégrité et verse une prime. C'est la seule tour du jeu
+ * dont l'intérêt n'est pas de faire des dégâts.
+ */
+function applySupportTowers() {
+  const supports = game.towers.filter((t) => t.variantFlags && t.variantFlags.support);
+  if (!supports.length) return;
+
+  for (const t of supports) {
+    const v = t.variant;
+    const every = v.supportEvery || 3;
+    if (game.wave % every !== 0) continue;
+
+    const gold = Math.round((v.supportGoldBase || 45) + (v.supportGoldPerWave || 8) * game.wave);
+    game.gold += gold;
+    let healed = 0;
+    if (game.lives < game.maxLives) {
+      healed = Math.min(v.supportLives || 1, game.maxLives - game.lives);
+      game.lives += healed;
+    }
+
+    game.vfx.ring(t.px, t.py, 6, 90, 0.6, PALETTE.ok, 4);
+    game.vfx.floatText(t.px, t.py - 30, `+${gold}${healed ? ` · +${healed} PV` : ''}`, PALETTE.ok, 17, 1.3);
+    UI.toast(
+      `<b>POSTE DE COMMANDEMENT</b><br>+${gold} crédits${healed ? ` · +${healed} intégrité` : ''}`,
+      'good', 2800
+    );
+  }
+}
 
 function startRun(opts = {}) {
   const tuto = !!opts.tutorial;
@@ -193,8 +244,16 @@ function startRun(opts = {}) {
   game.stormTimer = 0;
   game.freeTypes = new Set();
   game.chainBlastMult = 0.6 + (game.mods['tesla.chainBlast'] || 0);
-  // Pas de compte à rebours en entraînement : le joueur avance à son rythme.
-  game.prepLeft = tuto ? 0 : WAVE.prepTime;
+  // Variantes retenues pour cette partie (aucune pendant l'entraînement).
+  // On filtre : une variante non débloquée dans l'arbre ne doit pas
+  // s'appliquer, même si elle traîne encore dans la sauvegarde.
+  game.loadout = tuto ? {} : activeLoadout();
+  game.regenPool = 0;
+  game.firstKillDone = false;
+  game.leakShieldUsed = false;
+  // Aucun compte à rebours : le joueur lance la première vague quand il veut.
+  game.autoWave = tuto ? false : save.autoWave;
+  game.autoLeft = 0;
 
   // Réinitialise l'état de tutoriel avant de (ré)armer le mode.
   game.tutorial = null;
@@ -213,8 +272,9 @@ function startRun(opts = {}) {
   prepareNextWave();
   UI.setWaveButton(game);
   $('#pause-overlay').hidden = true;
-  $('#prep-badge').hidden = tuto;
   $('#tuto-coach').hidden = !tuto;
+  $('#btn-auto-wave').hidden = tuto;
+  $('#btn-auto-wave').classList.toggle('on', game.autoWave);
   $$('.speed-btns button').forEach((b) => b.classList.toggle('on', +b.dataset.speed === 1));
 
   game.state = STATE.GAME;
@@ -233,9 +293,10 @@ function startWave() {
   game.waveData = game.tutorial ? game.tutorial.waveFor() : buildWave(game.wave);
   game.waveRunner = new WaveRunner(game.waveData);
   game.waveRunning = true;
-  game.prepLeft = 0;
-  $('#prep-badge').hidden = true;
+  game.autoLeft = 0;
 
+  game.firstKillDone = false;
+  game.leakShieldUsed = false;
   for (const t of game.towers) t.onWaveStart(game);
 
   // Keystone DCA : barrage automatique sur les vagues aériennes
@@ -275,6 +336,19 @@ function completeWave() {
   const interest = Math.round(game.gold * (game.mods['player.interest'] || 0));
   game.gold += bonus + interest;
 
+  // GÉNIE MILITAIRE : régénération lente de l'intégrité.
+  if (game.mods['player.regen']) {
+    game.regenPool = (game.regenPool || 0) + game.mods['player.regen'];
+    while (game.regenPool >= 1 && game.lives < game.maxLives) {
+      game.regenPool -= 1;
+      game.lives++;
+      UI.toast('<b>GÉNIE MILITAIRE</b><br>+1 intégrité réparée', 'good', 2200);
+    }
+  }
+
+  // Variante POSTE DE COMMANDEMENT du sniper : soutien périodique.
+  applySupportTowers();
+
   // Keystone commandant : +1 vie toutes les 5 vagues
   if (game.mods['player.command'] && game.wave % 5 === 0) {
     game.maxLives++;
@@ -291,6 +365,7 @@ function completeWave() {
   );
 
   prepareNextWave();
+  game.autoLeft = WAVE.autoWaveGap;
   UI.setWaveButton(game);
   UI.refreshShop(game);
 }
@@ -334,11 +409,11 @@ function step(dt) {
   if (game.baseHitFlash > 0) game.baseHitFlash = Math.max(0, game.baseHitFlash - dt * 1.6);
   if (game.grid.pathAge < 1) game.grid.pathAge = Math.min(1, game.grid.pathAge + dt * 1.5);
 
-  // Décompte de préparation avant la toute première vague
-  if (!game.waveRunning && game.wave === 0 && game.prepLeft > 0) {
-    game.prepLeft -= dt;
-    $('#prep-time').textContent = Math.max(0, Math.ceil(game.prepLeft));
-    if (game.prepLeft <= 0) startWave();
+  // Vagues automatiques : enchaîne après un court répit, sur demande du joueur.
+  if (game.autoWave && !game.waveRunning && !game.tutorial) {
+    game.autoLeft -= dt;
+    UI.setWaveButton(game);
+    if (game.autoLeft <= 0) startWave();
   }
 
   // Apparitions
@@ -385,8 +460,11 @@ function step(dt) {
   // Cratères persistants du mortier
   for (const t of game.towers) {
     if (t.archetype !== 'mortar' || !t.craters.length) continue;
-    const dps = t.stats.damage * 0.18 * (1 + (game.mods['mortar.craterDps'] || 0));
+    const boost = 1 + (game.mods['mortar.craterDps'] || 0);
+    const baseDps = t.stats.damage * 0.18 * boost;
     for (const c of t.craters) {
+      // Une zone irradiée (ogive nucléaire) porte ses propres dégâts.
+      const dps = (c.dps !== undefined ? c.dps : baseDps) * (c.dps !== undefined ? boost : 1);
       for (const e of game.enemies) {
         if (e.dead || e.air) continue;
         if ((e.x - c.x) ** 2 + (e.y - c.y) ** 2 <= c.r * c.r) {
@@ -664,6 +742,17 @@ function bindGameInputs() {
   $('#btn-wave').addEventListener('click', startWave);
 
   $('#btn-pause').addEventListener('click', togglePause);
+
+  $('#btn-auto-wave').addEventListener('click', () => {
+    game.autoWave = !game.autoWave;
+    save.setAutoWave(game.autoWave);
+    game.autoLeft = game.autoWave ? WAVE.autoWaveGap : 0;
+    $('#btn-auto-wave').classList.toggle('on', game.autoWave);
+    UI.setWaveButton(game);
+    UI.toast(game.autoWave
+      ? '<b>VAGUES AUTOMATIQUES</b><br>La suivante part toute seule'
+      : '<b>VAGUES MANUELLES</b><br>À toi de lancer', game.autoWave ? 'good' : 'warn', 2000);
+  });
 
   const chkShake = $('#chk-shake');
   chkShake.checked = save.shakeEnabled;
@@ -955,6 +1044,67 @@ function bindCommanderInputs() {
 }
 
 // ============================================================
+//  Préparation de mission — choix des variantes de tourelles
+// ============================================================
+
+/** Une variante est disponible si son nœud de l'arbre a été acheté. */
+function variantUnlocked(id) {
+  const mods = computeMods(tree, save.unlocked);
+  return !!mods['variant.' + id];
+}
+
+/** Table des variantes réellement jouables, filtrée sur les déblocages. */
+function activeLoadout() {
+  const mods = computeMods(tree, save.unlocked);
+  const out = Object.create(null);
+  for (const arche of VARIANT_ORDER) {
+    const id = save.loadout[arche];
+    if (id && VARIANT_BY_ID[id] && mods['variant.' + id]) out[arche] = id;
+  }
+  return out;
+}
+
+function openLoadout() {
+  UI.showScreen('screen-loadout', {
+    onSwap: () => {
+      game.state = STATE.LOADOUT;
+      refreshLoadout();
+    }
+  });
+}
+
+function refreshLoadout() {
+  // Un seul calcul de mods pour toute la grille : computeMods parcourt
+  // l'ensemble des nœuds achetés, inutile de le refaire 18 fois.
+  const mods = computeMods(tree, save.unlocked);
+  UI.renderLoadout(save, (id) => !!mods['variant.' + id], (arche, variantId) => {
+    save.setVariant(arche, variantId);
+    refreshLoadout();
+    const v = variantId ? VARIANT_BY_ID[variantId] : null;
+    UI.toast(v
+      ? `<b>${TOWERS[arche].name}</b><br>${v.def.name}`
+      : `<b>${TOWERS[arche].name}</b><br>Version standard`, '', 1600);
+  });
+}
+
+function bindLoadoutInputs() {
+  $('#lo-back').addEventListener('click', () => {
+    UI.renderMenu(save, tree.nodes.length - 1);
+    UI.showScreen('screen-menu', { onSwap: () => { game.state = STATE.MENU; } });
+  });
+  $('#lo-deploy').addEventListener('click', () => {
+    UI.showScreen('screen-game', {
+      onSwap: () => { startRun(); requestAnimationFrame(fitStage); }
+    });
+  });
+  window.addEventListener('keydown', (ev) => {
+    if (game.state !== STATE.LOADOUT) return;
+    if (ev.key === 'Escape') $('#lo-back').click();
+    if (ev.key === 'Enter') $('#lo-deploy').click();
+  });
+}
+
+// ============================================================
 //  Entrées — arbre
 // ============================================================
 
@@ -1043,11 +1193,7 @@ function bindTreeInputs() {
 // ============================================================
 
 function bindMenuInputs() {
-  $('#btn-play').addEventListener('click', () => {
-    UI.showScreen('screen-game', {
-      onSwap: () => { startRun(); requestAnimationFrame(fitStage); }
-    });
-  });
+  $('#btn-play').addEventListener('click', openLoadout);
 
   $('#btn-tree').addEventListener('click', openTree);
 
@@ -1060,11 +1206,7 @@ function bindMenuInputs() {
     }
   });
 
-  $('#over-again').addEventListener('click', () => {
-    UI.showScreen('screen-game', {
-      onSwap: () => { startRun(); requestAnimationFrame(fitStage); }
-    });
-  });
+  $('#over-again').addEventListener('click', openLoadout);
 
   $('#over-tree').addEventListener('click', openTree);
 
@@ -1087,6 +1229,7 @@ function init() {
   bindCommanderInputs();
   bindHelpModal();
   bindTutorialInputs();
+  bindLoadoutInputs();
 
   window.addEventListener('resize', () => {
     fitStage();
@@ -1108,7 +1251,7 @@ function init() {
     get treeView() { return treeView; },
     get tutorial() { return game.tutorial; },
     tryPlace, buyNode, endRun, startWave, startRun, fitStage,
-    launchTutorial, pickTower
+    launchTutorial, pickTower, openLoadout, refreshLoadout, activeLoadout, variantUnlocked
   };
 
   console.log(

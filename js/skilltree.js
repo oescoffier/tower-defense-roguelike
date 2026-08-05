@@ -5,7 +5,10 @@
 //  Rendu sur canvas dédié avec pan / zoom et culling par viewport.
 // ============================================================
 
-import { TREE, BRANCHES, BRANCH_STATS, NOTABLES, KEYSTONES, PALETTE } from './config.js';
+import {
+  TREE, BRANCHES, BRANCH_STATS, NOTABLES, KEYSTONES, PALETTE,
+  VARIANTS, VARIANT_RINGS, iconForKey
+} from './config.js';
 import { Rng, hashStr } from './rng.js';
 
 const TAU = Math.PI * 2;
@@ -61,7 +64,9 @@ export function buildTree() {
     const stats = BRANCH_STATS[branch.id];
     const notables = NOTABLES[branch.id];
     const keystones = KEYSTONES[branch.id];
+    const branchVariants = VARIANTS[branch.id] || [];
     let keyUsed = 0;
+    let variantUsed = 0;
 
     const rings = [];
 
@@ -70,6 +75,9 @@ export function buildTree() {
       const baseR = TREE.ring0 + r * TREE.ringStep;
       const ring = [];
       const keystoneSlot = KEYSTONE_RINGS.includes(r) ? Math.floor(n / 2) : -1;
+      // Un nœud VARIANTE par anneau reserve, decale du keystone.
+      const variantSlot = (branchVariants.length && VARIANT_RINGS.includes(r))
+        ? Math.max(0, Math.floor(n / 2) - 2) : -1;
 
       for (let i = 0; i < n; i++) {
         const tSlot = n > 1 ? (i + 0.5) / n : 0.5;
@@ -78,21 +86,34 @@ export function buildTree() {
         const radius = baseR + rng.float(-TREE.ringStep * 0.2, TREE.ringStep * 0.2);
 
         const id = `${branch.id}-${r}-${i}`;
-        let type, name, desc, effects, cost;
+        let type, name, desc, effects, cost, icon, variantId;
 
-        if (i === keystoneSlot && keyUsed < keystones.length) {
+        if (i === variantSlot && variantUsed < branchVariants.length) {
+          // Nœud VARIANTE : ouvre une version alternative de la tourelle,
+          // sélectionnable ensuite depuis l'écran de préparation.
+          const vr = branchVariants[variantUsed++];
+          type = 'variant';
+          name = vr.name;
+          desc = vr.desc;
+          icon = vr.icon;
+          variantId = vr.id;
+          effects = [{ key: `variant.${vr.id}`, value: 1 }];
+          cost = Math.round((TREE.costBase + TREE.costPerRing * r) * TREE.variantCostMult);
+        } else if (i === keystoneSlot && keyUsed < keystones.length) {
           const k = keystones[keyUsed++];
           type = 'keystone';
           name = k[0];
           desc = k[3];
           effects = [{ key: k[1], value: k[2] }];
+          icon = iconForKey(k[1]);
           cost = Math.round((TREE.costBase + TREE.costPerRing * r) * TREE.keystoneCostMult);
-        } else if (r >= 2 && rng.next() < 0.145) {
+        } else if (r >= 2 && rng.next() < TREE.notableRate) {
           const nb = rng.pick(notables);
           type = 'notable';
           name = nb[0];
           desc = nb[3];
           effects = [{ key: nb[1], value: nb[2] }];
+          icon = iconForKey(nb[1]);
           cost = Math.round((TREE.costBase + TREE.costPerRing * r) * TREE.notableCostMult);
         } else {
           const stat = rng.weighted(stats);
@@ -102,6 +123,7 @@ export function buildTree() {
           name = null;
           desc = fmtValue(stat, value);
           effects = [{ key: stat.key, value }];
+          icon = iconForKey(stat.key);
           cost = TREE.costBase + TREE.costPerRing * r;
         }
 
@@ -109,8 +131,11 @@ export function buildTree() {
           id, branch: bi, branchId: branch.id, ring: r, index: i,
           x: Math.cos(angle) * radius, y: Math.sin(angle) * radius,
           angle, radius, type, name, desc, effects, cost,
+          icon: icon || '•', variantId: variantId || null,
           links: [], color: branch.color,
-          r: type === 'keystone' ? TREE.keystoneR : type === 'notable' ? TREE.notableR : TREE.nodeR,
+          r: type === 'variant' ? TREE.variantR
+            : type === 'keystone' ? TREE.keystoneR
+            : type === 'notable' ? TREE.notableR : TREE.nodeR,
           twinkle: rng.float(0, TAU)
         };
         ring.push(node);
@@ -567,7 +592,28 @@ export class TreeView {
       : (affordable ? n.color : (available ? PALETTE.text : n.color));
     ctx.globalAlpha = (unlocked || available) ? 1 : 0.62;
 
-    if (n.type === 'keystone') {
+    if (n.type === 'variant') {
+      // Octogone a double contour : la forme la plus « lourde » de l'arbre,
+      // pour qu'on repere un debouche de branche meme tres dezoome.
+      const oct = (rr) => {
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+          const a = i / 8 * TAU + Math.PI / 8;
+          ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr);
+        }
+        ctx.closePath();
+      };
+      ctx.fillStyle = unlocked ? n.color : '#0d0d0d';
+      ctx.save(); ctx.translate(4, 4); oct(r); ctx.fill(); ctx.restore();
+      ctx.fillStyle = fill;
+      oct(r); ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 4;
+      oct(r); ctx.stroke();
+      ctx.strokeStyle = unlocked ? PALETTE.bg : stroke;
+      ctx.lineWidth = 1.6;
+      oct(r * 0.7); ctx.stroke();
+    } else if (n.type === 'keystone') {
       const s = r;
       ctx.rotate(Math.PI / 4);
       ctx.fillStyle = unlocked ? n.color : '#0d0d0d';
@@ -610,6 +656,18 @@ export class TreeView {
       ctx.stroke();
     }
 
+    // --- Symbole : dit d'un coup d'oeil ce que le noeud apporte ---
+    // Sous 0.3 de zoom les glyphes deviennent illisibles : on les coupe
+    // pour ne pas payer un fillText par noeud dans le vide.
+    if (z > 0.3 && n.icon) {
+      ctx.globalAlpha = unlocked ? 1 : (available ? 0.9 : 0.5);
+      ctx.fillStyle = unlocked ? PALETTE.bg : (affordable ? n.color : PALETTE.text);
+      ctx.font = `${Math.round(r * 1.15)}px "Space Mono", monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(n.icon, 0, r * 0.06);
+    }
+
     // Anneau de sélection
     if (isSel) {
       ctx.globalAlpha = 1;
@@ -626,7 +684,7 @@ export class TreeView {
     // Nom des notables/keystones quand on est assez zoomé
     if (z > 0.55 && n.type !== 'minor' && n.name) {
       ctx.save();
-      ctx.font = `${n.type === 'keystone' ? 20 : 15}px "Bebas Neue", sans-serif`;
+      ctx.font = `${n.type === 'variant' ? 23 : n.type === 'keystone' ? 20 : 15}px "Bebas Neue", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.lineWidth = 4;

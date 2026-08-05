@@ -508,6 +508,7 @@ b { font-weight: 700; }
 }
 .detail-type.notable { background: var(--gold); color: var(--text-dark); }
 .detail-type.keystone { background: var(--danger); color: var(--text-dark); }
+.detail-type.variant { background: var(--ok); color: var(--text-dark); }
 
 .detail-name { font-size: 1.9rem; line-height: 1.05; margin-bottom: 4px; }
 .detail-branch { font-size: 0.64rem; letter-spacing: 0.2em; color: var(--muted); margin-bottom: 14px; }
@@ -728,24 +729,25 @@ b { font-weight: 700; }
 .toast.good { border-left-color: var(--ok); }
 .toast b { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0.06em; }
 
-/* --- Badge de préparation --- */
-.prep-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 7px 13px;
-  background: var(--bg);
-  border: 2px solid var(--gold);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.62rem;
-  letter-spacing: 0.24em;
-  color: var(--gold);
-  z-index: 5;
+/* --- Bouton vagues automatiques --- */
+.btn-auto {
+  flex: none;
+  letter-spacing: 0.14em;
+  border-color: var(--surface-3);
+  color: var(--muted);
 }
-.prep-badge b { font-family: var(--font-display); font-size: 1.7rem; line-height: 1; }
-.prep-badge[hidden] { display: none; }
+.btn-auto[hidden] { display: none; }
+.btn-auto.on {
+  background: var(--gold);
+  border-color: var(--line);
+  color: var(--text-dark);
+  box-shadow: 3px 3px 0 var(--line);
+}
+.btn-auto.on::before {
+  content: '▶';
+  margin-right: 5px;
+  font-size: 0.7em;
+}
 
 /* --- Pause --- */
 .pause-overlay {
@@ -982,6 +984,154 @@ b { font-weight: 700; }
 
 .over-actions { display: flex; flex-direction: column; gap: 10px; align-items: center; }
 .over-actions .btn-lg { width: 100%; }
+
+/* ============================================================
+   PRÉPARATION DE MISSION (loadout)
+   ============================================================ */
+.lo-layout {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.lo-top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 14px;
+}
+.lo-title { font-family: var(--font-display); font-size: 1.7rem; letter-spacing: 0.1em; }
+.lo-mats { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.lo-mats .label { font-size: 0.64rem; letter-spacing: 0.24em; color: var(--muted); }
+.lo-mats b { font-family: var(--font-display); font-size: 1.7rem; line-height: 1; color: var(--gold); }
+
+.lo-intro {
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--muted);
+  padding: 12px 14px;
+}
+.lo-intro b { color: var(--text); }
+
+.lo-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 12px;
+  align-content: start;
+  /* Le pied de page est collant : sans cette reserve il recouvrirait la
+     derniere option des cartes du bas, qui devient alors incliquable. */
+  padding-bottom: 96px;
+}
+
+.lo-tower {
+  background: var(--surface-2);
+  border: var(--border);
+  border-left-width: 5px;
+  padding: 12px;
+}
+
+.lo-tower-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 8px;
+  margin-bottom: 9px;
+  border-bottom: 1px solid var(--surface-3);
+}
+.lo-glyph {
+  width: 30px; height: 30px; flex: none;
+  display: grid; place-items: center;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  font-size: 1rem;
+}
+.lo-tower-name { font-family: var(--font-display); font-size: 1.25rem; letter-spacing: 0.05em; }
+.lo-tower-tag { margin-left: auto; font-size: 0.58rem; letter-spacing: 0.12em; color: var(--muted); }
+
+.lo-opts { display: flex; flex-direction: column; gap: 5px; }
+
+.lo-opt {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 9px;
+  align-items: start;
+  width: 100%;
+  padding: 8px 9px;
+  background: var(--surface);
+  border: 2px solid transparent;
+  text-align: left;
+  transition: transform 0.08s steps(2), background 0.12s, border-color 0.12s;
+}
+.lo-opt:hover:not(.locked) { transform: translateX(4px); background: var(--surface-3); }
+/* Marge prise en compte par scrollIntoView, pour ne jamais s'arreter
+   sous le pied de page collant. */
+.lo-opt { scroll-margin-bottom: 120px; scroll-margin-top: 90px; }
+.lo-opt.on { border-color: var(--line); background: var(--surface-3); }
+.lo-opt.locked { opacity: 0.4; cursor: not-allowed; }
+
+.lo-opt-icon {
+  font-size: 1.05rem;
+  line-height: 1.2;
+  text-align: center;
+}
+.lo-opt-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.lo-opt-badge {
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+}
+.lo-opt-desc {
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.lo-opt.on .lo-opt-desc { color: var(--text); }
+.lo-opt-lock {
+  font-size: 0.62rem;
+  color: var(--danger);
+  margin-top: 3px;
+  letter-spacing: 0.05em;
+}
+
+.lo-bottom {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: var(--surface-2);
+  box-shadow: 0 -10px 0 -6px var(--bg);
+}
+.lo-summary {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.66rem;
+}
+.lo-chip {
+  padding: 4px 8px;
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+  letter-spacing: 0.05em;
+}
+.lo-chip b { font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 0.06em; }
 
 /* ============================================================
    TUTORIEL

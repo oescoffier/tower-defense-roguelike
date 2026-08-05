@@ -4,7 +4,11 @@
 //  ou le moteur de repli tween.js).
 // ============================================================
 
-import { TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_ORDER, COMMANDER_RANK_KILLS, TARGET, PALETTE, TREE, BRANCHES, materialsForWave } from './config.js';
+import {
+  TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_ORDER, COMMANDER_RANK_KILLS,
+  TARGET, PALETTE, TREE, BRANCHES, VARIANTS, VARIANT_ORDER, VARIANT_RINGS,
+  materialsForWave
+} from './config.js';
 import { towerCost } from './towers.js';
 import tween from './tween.js';
 
@@ -334,7 +338,13 @@ export function setWaveButton(game) {
     return;
   }
   btn.disabled = false;
-  label.textContent = `LANCER LA VAGUE ${game.wave + 1}`;
+  // En mode automatique, le bouton devient un décompte cliquable :
+  // le joueur garde la main pour partir plus tôt.
+  if (game.autoWave && game.autoLeft > 0) {
+    label.textContent = `VAGUE ${game.wave + 1} DANS ${Math.ceil(game.autoLeft)}s`;
+  } else {
+    label.textContent = `LANCER LA VAGUE ${game.wave + 1}`;
+  }
 }
 
 export function renderWaveComp(waveData, summary) {
@@ -520,13 +530,21 @@ export function renderNodeDetail(node, save, tree, canBuy) {
 
   const typeEl = $('#detail-type');
   typeEl.className = 'detail-type ' + node.type;
-  typeEl.textContent = { minor: 'MINEUR', notable: 'NOTABLE', keystone: 'CLÉ DE VOÛTE' }[node.type];
+  typeEl.textContent = {
+    minor: 'MINEUR', notable: 'NOTABLE',
+    keystone: 'CLÉ DE VOÛTE', variant: 'VARIANTE DE TOURELLE'
+  }[node.type] || 'NŒUD';
 
-  $('#detail-name').textContent = node.name || node.desc;
+  $('#detail-name').textContent = `${node.icon || ''} ${node.name || node.desc}`.trim();
   $('#detail-name').style.color = node.color;
   const branchName = (BRANCHES[node.branch] || {}).name || node.branchId.toUpperCase();
   $('#detail-branch').textContent = `${branchName} · ANNEAU ${node.ring + 1}`;
-  $('#detail-desc').textContent = node.desc;
+  $('#detail-desc').textContent = node.type === 'variant'
+    ? `${node.desc}
+
+Une fois débloquée, choisis-la avant de partir en mission depuis l'écran de PRÉPARATION.`
+    : node.desc;
+  $('#detail-desc').style.whiteSpace = node.type === 'variant' ? 'pre-line' : '';
   $('#detail-desc').style.borderLeftColor = node.color;
   $('#detail-cost').textContent = node.cost;
 
@@ -580,4 +598,85 @@ export function renderBranchNav(summaries, active, onPick) {
 export function estimateMaterials(wave, mods) {
   const bonus = 1 + (mods['player.materials'] || 0);
   return Math.round(materialsForWave(wave) * bonus);
+}
+
+// ============================================================
+//  Préparation de mission (loadout)
+// ============================================================
+
+/**
+ * Une carte par tourelle, listant sa version de base et ses 3 variantes.
+ * `isUnlocked(variantId)` dit si le nœud correspondant a été acheté dans
+ * l'arbre ; sinon l'option est affichée verrouillée, avec l'anneau où la
+ * trouver — on montre ce qu'il y a à gagner plutôt que de le cacher.
+ */
+export function renderLoadout(save, isUnlocked, onPick) {
+  const grid = $('#lo-grid');
+  let unlockedCount = 0;
+
+  grid.innerHTML = VARIANT_ORDER.map((arche) => {
+    const t = TOWERS[arche];
+    const chosen = save.loadout[arche] || null;
+
+    const base = `
+      <button class="lo-opt ${chosen ? '' : 'on'}" data-arche="${arche}" data-variant="">
+        <span class="lo-opt-icon" style="color:${t.accent}">◈</span>
+        <span>
+          <span class="lo-opt-name">STANDARD
+            <span class="lo-opt-badge" style="color:var(--muted)">DE BASE</span>
+          </span>
+          <span class="lo-opt-desc">${t.desc}</span>
+        </span>
+      </button>`;
+
+    const opts = VARIANTS[arche].map((v, i) => {
+      const ok = isUnlocked(v.id);
+      if (ok) unlockedCount++;
+      const on = chosen === v.id;
+      const ring = VARIANT_RINGS[i] + 1;
+      return `
+      <button class="lo-opt ${on ? 'on' : ''} ${ok ? '' : 'locked'}"
+              data-arche="${arche}" data-variant="${v.id}" ${ok ? '' : 'disabled'}>
+        <span class="lo-opt-icon" style="color:${v.accent}">${v.icon}</span>
+        <span>
+          <span class="lo-opt-name" style="color:${ok ? v.accent : 'var(--muted)'}">${v.name}
+            <span class="lo-opt-badge">${v.short}</span>
+          </span>
+          <span class="lo-opt-desc">${v.desc}</span>
+          ${ok ? '' : `<span class="lo-opt-lock">✖ VERROUILLÉE — branche ${t.name}, anneau ${ring}</span>`}
+        </span>
+      </button>`;
+    }).join('');
+
+    return `<div class="lo-tower" style="border-left-color:${t.accent}">
+      <div class="lo-tower-head">
+        <span class="lo-glyph" style="color:${t.accent}">${GLYPHS[arche]}</span>
+        <span class="lo-tower-name">${t.name}</span>
+        <span class="lo-tower-tag">${TARGET_LABEL[t.targets]}</span>
+      </div>
+      <div class="lo-opts">${base}${opts}</div>
+    </div>`;
+  }).join('');
+
+  $$('.lo-opt').forEach((el) => {
+    if (el.disabled) return;
+    el.addEventListener('click', () => onPick(el.dataset.arche, el.dataset.variant || null));
+  });
+
+  const total = VARIANT_ORDER.length * 3;
+  $('#lo-count').textContent = `${unlockedCount} / ${total}`;
+  renderLoadoutSummary(save);
+}
+
+/** Bandeau récapitulatif : ce qu'on emmène réellement. */
+export function renderLoadoutSummary(save) {
+  const el = $('#lo-summary');
+  el.innerHTML = VARIANT_ORDER.map((arche) => {
+    const t = TOWERS[arche];
+    const id = save.loadout[arche];
+    const v = id ? VARIANTS[arche].find((x) => x.id === id) : null;
+    return `<span class="lo-chip" style="border-left-color:${v ? v.accent : 'var(--surface-3)'}">
+      ${t.short} <b style="color:${v ? v.accent : 'var(--muted)'}">${v ? v.short : 'STANDARD'}</b>
+    </span>`;
+  }).join('');
 }

@@ -43,6 +43,7 @@ export const STATE = {
   MENU: 'MENU',
   TREE: 'TREE',
   COMMANDER: 'COMMANDER',
+  LOADOUT: 'LOADOUT',
   GAME: 'GAME',
   OVER: 'OVER'
 };
@@ -492,7 +493,7 @@ export const WAVE = {
   spawnGapMin: 0.16,
   bossGroundEvery: 10,
   bossAirEvery: 15,
-  prepTime: 12           // secondes de préparation avant la 1re vague
+  autoWaveGap: 4         // répit (s) entre deux vagues en mode automatique
 };
 
 export const ECONOMY = {
@@ -543,12 +544,16 @@ export const TREE = {
   nodeR: 13,
   notableR: 19,
   keystoneR: 27,
-  minorRate: 0.84,
-  notableRate: 0.13,
+  minorRate: 0.72,
+  // Relevé : un arbre de +2000 nœuds n'a d'intérêt que si les effets
+  // vraiment marquants y sont assez denses pour orienter un parcours.
+  notableRate: 0.24,
   costBase: 6,
   costPerRing: 3,
   notableCostMult: 3,
-  keystoneCostMult: 8
+  keystoneCostMult: 8,
+  variantCostMult: 7,    // les variantes sont le gros lot d'une branche
+  variantR: 31
 };
 
 export const BRANCHES = [
@@ -620,78 +625,140 @@ export const BRANCH_STATS = {
 };
 
 // Notables : effets nommés, tirés au sort par branche.
+// La majorité sont CONDITIONNELS (contre les boss, les blindés, les cibles
+// en feu, à faible vie...) ou mécaniques, plutôt que de simples bonus
+// plats : c'est ce qui rend un chemin dans l'arbre différent d'un autre.
 export const NOTABLES = {
   mg: [
-    ['CANON JUMELÉ', 'mg.damage', 0.14, '+14% dégâts mitraillette'],
-    ['BARILLET FROID', 'mg.spinDown', -0.35, 'La montée en régime se dissipe 35% moins vite'],
-    ['MUNITIONS PERFORANTES', 'mg.armorPen', 4, 'Ignore 4 points d\'armure'],
-    ['SUR-RÉGIME', 'mg.spinMax', 0.25, '+25% de régime maximum'],
-    ['RICOCHET', 'mg.ricochet', 0.18, '+18% de chance de ricochet sur une seconde cible'],
-    ['CHARGEUR TAMBOUR', 'mg.rate', 0.16, '+16% cadence'],
-    ['LIGNE DE MIRE', 'mg.range', 0.18, '+18% portée'],
-    ['SUPPRESSION', 'mg.slow', 0.10, 'Les cibles touchées sont ralenties de 10%']
+    ["CANON JUMELÉ", "mg.damage", 0.14, "+14% dégâts mitraillette"],
+    ["BARILLET FROID", "mg.spinDown", -0.35, "La montée en régime se dissipe 35% moins vite"],
+    ["MUNITIONS PERFORANTES", "mg.armorPen", 4, "Ignore 4 points d'armure"],
+    ["SUR-RÉGIME", "mg.spinMax", 0.25, "+25% de régime maximum"],
+    ["RICOCHET", "mg.ricochet", 0.18, "+18% de chance de ricochet sur une seconde cible"],
+    ["SUPPRESSION", "mg.slow", 0.1, "Les cibles touchées sont ralenties de 10%"],
+    ["TIR DE BARRAGE", "mg.vsGround", 0.3, "+30% de dégâts contre les ennemis au sol"],
+    ["DÉFENSE RAPPROCHÉE", "mg.vsAir", 0.35, "+35% de dégâts contre les aériens"],
+    ["ACHARNEMENT", "mg.lowHp", 0.55, "+55% de dégâts sur les cibles sous 35% de vie"],
+    ["MEULEUSE", "mg.shred", 0.35, "Chaque balle retire définitivement 0.35 point d'armure"],
+    ["TIR NOURRI", "mg.vsBurning", 0.4, "+40% de dégâts sur une cible qui brûle"],
+    ["CIBLE PRIORITAIRE", "mg.vsBoss", 0.45, "+45% de dégâts contre les boss"],
+    ["PERCE-BOUCLIER", "mg.vsShield", 0.5, "+50% de dégâts contre les cibles à bouclier"],
+    ["SANS SOMMATION", "mg.fullHp", 0.35, "+35% de dégâts sur une cible encore intacte"],
+    ["ENRAYAGE IMPOSSIBLE", "mg.rate", 0.16, "+16% cadence"],
+    ["LIGNE DE MIRE", "mg.range", 0.18, "+18% portée"]
   ],
   sniper: [
-    ['ŒIL D\'AIGLE', 'sniper.range', 0.22, '+22% portée'],
-    ['POINT FAIBLE', 'sniper.critChance', 0.10, '+10% chance critique'],
-    ['CALIBRE LOURD', 'sniper.damage', 0.18, '+18% dégâts'],
-    ['TRAVERSÉE', 'sniper.pierce', 0.5, '+50% de cibles traversées'],
-    ['EXÉCUTION', 'sniper.execute', 0.08, 'Élimine les cibles non-boss sous 8% de vie'],
-    ['CULASSE RAPIDE', 'sniper.rate', 0.18, '+18% cadence'],
-    ['BALLE INCENDIAIRE', 'sniper.burn', 1, 'Applique une brûlure à l\'impact'],
-    ['LETALITÉ', 'sniper.critMult', 0.4, '+40% dégâts critiques']
+    ["ŒIL D'AIGLE", "sniper.range", 0.22, "+22% portée"],
+    ["POINT FAIBLE", "sniper.critChance", 0.1, "+10% chance critique"],
+    ["TRAVERSÉE", "sniper.pierce", 0.5, "+50% de cibles traversées"],
+    ["EXÉCUTION", "sniper.execute", 0.08, "Élimine les cibles non-boss sous 8% de vie"],
+    ["BALLE INCENDIAIRE", "sniper.burn", 1, "Applique une brûlure à l'impact"],
+    ["LÉTALITÉ", "sniper.critMult", 0.4, "+40% dégâts critiques"],
+    ["CHASSEUR DE TÊTES", "sniper.vsBoss", 0.6, "+60% de dégâts contre les boss"],
+    ["PREMIER SANG", "sniper.fullHp", 0.65, "+65% de dégâts sur une cible encore intacte"],
+    ["TIR ANTI-BLINDAGE", "sniper.vsArmor", 0.55, "+55% de dégâts contre les cibles blindées"],
+    ["DÉFENSE ANTIAÉRIENNE", "sniper.vsAir", 0.45, "+45% de dégâts contre les aériens"],
+    ["COUP DE GRÂCE", "sniper.lowHp", 0.8, "+80% de dégâts sur les cibles sous 35% de vie"],
+    ["DÉSINTÉGRATION", "sniper.shred", 2.5, "Chaque tir retire définitivement 2.5 points d'armure"],
+    ["BRISE-GARDE", "sniper.vsShield", 0.7, "+70% de dégâts contre les cibles à bouclier"],
+    ["CADENCE SOUTENUE", "sniper.rate", 0.18, "+18% cadence"],
+    ["CALIBRE LOURD", "sniper.damage", 0.18, "+18% dégâts"],
+    ["MARQUAGE", "sniper.vsSlowed", 0.5, "+50% de dégâts sur une cible ralentie ou étourdie"]
   ],
   mortar: [
-    ['CHARGE CREUSE', 'mortar.damage', 0.20, '+20% dégâts'],
-    ['ONDE DE CHOC', 'mortar.splash', 0.20, '+20% rayon d\'explosion'],
-    ['NAPALM', 'mortar.craterDps', 0.45, '+45% dégâts de cratère'],
-    ['SALVE DOUBLE', 'mortar.salvo', 1, 'Tire un obus supplémentaire par salve'],
-    ['ÉCLATS', 'mortar.shrapnel', 6, 'L\'explosion projette 6 éclats'],
-    ['TIR TENDU', 'mortar.arcTime', -0.3, '-30% temps de vol'],
-    ['BOMBARDEMENT', 'mortar.range', 0.20, '+20% portée'],
-    ['SISMIQUE', 'mortar.stun', 0.35, 'Étourdit les cibles 0.35s dans le rayon']
+    ["ONDE DE CHOC", "mortar.splash", 0.2, "+20% rayon d'explosion"],
+    ["NAPALM", "mortar.craterDps", 0.45, "+45% dégâts de cratère"],
+    ["SALVE DOUBLE", "mortar.salvo", 1, "Tire un obus supplémentaire par salve"],
+    ["ÉCLATS", "mortar.shrapnel", 6, "L'explosion projette 6 éclats"],
+    ["TIR TENDU", "mortar.arcTime", -0.3, "-30% temps de vol"],
+    ["SISMIQUE", "mortar.stun", 0.35, "Étourdit les cibles 0.35s dans le rayon"],
+    ["SATURATION", "mortar.vsGround", 0.35, "+35% de dégâts contre les ennemis au sol"],
+    ["DÉMOLITION", "mortar.vsArmor", 0.6, "+60% de dégâts contre les cibles blindées"],
+    ["FRAPPE DÉCISIVE", "mortar.vsBoss", 0.5, "+50% de dégâts contre les boss"],
+    ["SOUFFLE THERMIQUE", "mortar.vsBurning", 0.45, "+45% de dégâts sur une cible qui brûle"],
+    ["ACIER FONDU", "mortar.shred", 1.5, "Chaque explosion retire définitivement 1.5 point d'armure"],
+    ["PILONNAGE", "mortar.vsSlowed", 0.55, "+55% de dégâts sur une cible ralentie ou étourdie"],
+    ["CHARGE CREUSE", "mortar.damage", 0.2, "+20% dégâts"],
+    ["BOMBARDEMENT", "mortar.range", 0.2, "+20% portée"],
+    ["CADENCE DE TIR", "mortar.rate", 0.16, "+16% cadence"],
+    ["ACHÈVEMENT", "mortar.lowHp", 0.6, "+60% de dégâts sur les cibles sous 35% de vie"]
   ],
   tesla: [
-    ['SURTENSION', 'tesla.damage', 0.20, '+20% dégâts'],
-    ['ARC ÉTENDU', 'tesla.bouncesFlat', 2, '+2 rebonds'],
-    ['CONDUCTEUR', 'tesla.bounceFalloff', 0.08, 'Les rebonds conservent 8% de dégâts en plus'],
-    ['DÉTONATION', 'tesla.chainBlast', 0.35, '+35% de puissance d\'explosion en chaîne'],
-    ['IMPULSION EMP', 'tesla.emp', 0.2, 'Retire 20% du bouclier des cibles touchées'],
-    ['BOBINE LOURDE', 'tesla.rate', 0.18, '+18% cadence'],
-    ['CHAMP MAGNÉTIQUE', 'tesla.bounceRange', 0.25, '+25% portée de rebond'],
-    ['CHARGE PERSISTANTE', 'tesla.chargeDur', 0.5, '+50% durée de la marque électrique']
+    ["ARC ÉTENDU", "tesla.bouncesFlat", 2, "+2 rebonds"],
+    ["CONDUCTEUR", "tesla.bounceFalloff", 0.08, "Les rebonds conservent 8% de dégâts en plus"],
+    ["DÉTONATION", "tesla.chainBlast", 0.35, "+35% de puissance d'explosion en chaîne"],
+    ["IMPULSION EMP", "tesla.emp", 0.2, "Retire 20% du bouclier des cibles touchées"],
+    ["CHAMP MAGNÉTIQUE", "tesla.bounceRange", 0.25, "+25% portée de rebond"],
+    ["CHARGE PERSISTANTE", "tesla.chargeDur", 0.5, "+50% durée de la marque électrique"],
+    ["COURT-CIRCUIT", "tesla.vsShield", 0.85, "+85% de dégâts contre les cibles à bouclier"],
+    ["PARATONNERRE", "tesla.vsAir", 0.45, "+45% de dégâts contre les aériens"],
+    ["MISE À LA TERRE", "tesla.vsGround", 0.35, "+35% de dégâts contre les ennemis au sol"],
+    ["ARC FATAL", "tesla.lowHp", 0.7, "+70% de dégâts sur les cibles sous 35% de vie"],
+    ["ÉLECTROLYSE", "tesla.shred", 1, "Chaque décharge retire définitivement 1 point d'armure"],
+    ["SURTENSION CIBLÉE", "tesla.vsBoss", 0.5, "+50% de dégâts contre les boss"],
+    ["PLASMA", "tesla.vsBurning", 0.5, "+50% de dégâts sur une cible qui brûle"],
+    ["BOBINE LOURDE", "tesla.rate", 0.18, "+18% cadence"],
+    ["SURTENSION", "tesla.damage", 0.2, "+20% dégâts"],
+    ["ANTENNE", "tesla.range", 0.18, "+18% portée"]
   ],
   flame: [
-    ['CARBURANT LOURD', 'flame.burnDps', 0.30, '+30% dégâts de brûlure'],
-    ['BRASIER', 'flame.burnDur', 0.35, '+35% durée de brûlure'],
-    ['GUEULE LARGE', 'flame.cone', 0.20, '+20% angle du cône'],
-    ['PROPAGATION', 'flame.spread', 1.2, 'La brûlure se propage aux ennemis à 1.2 cellule'],
-    ['FONTE D\'ARMURE', 'flame.melt', 0.5, 'La brûlure retire 0.5 armure par seconde'],
-    ['PRESSION', 'flame.range', 0.22, '+22% portée'],
-    ['SURCHAUFFE', 'flame.damage', 0.20, '+20% dégâts directs'],
-    ['STACKS PROFONDS', 'flame.burnStacks', 3, '+3 cumuls de brûlure maximum']
+    ["CARBURANT LOURD", "flame.burnDps", 0.3, "+30% dégâts de brûlure"],
+    ["BRAISE", "flame.burnDur", 0.35, "+35% durée de brûlure"],
+    ["GUEULE LARGE", "flame.cone", 0.2, "+20% angle du cône"],
+    ["PROPAGATION", "flame.spread", 1.2, "La brûlure se propage aux ennemis à 1.2 cellule"],
+    ["FONTE D'ARMURE", "flame.melt", 0.5, "La brûlure retire 0.5 armure par seconde"],
+    ["STACKS PROFONDS", "flame.burnStacks", 3, "+3 cumuls de brûlure maximum"],
+    ["ATTISER", "flame.vsBurning", 0.75, "+75% de dégâts sur une cible déjà en feu"],
+    ["FOUR À BLINDAGE", "flame.vsArmor", 0.55, "+55% de dégâts contre les cibles blindées"],
+    ["CENDRES", "flame.lowHp", 0.65, "+65% de dégâts sur les cibles sous 35% de vie"],
+    ["BÛCHER", "flame.vsBoss", 0.45, "+45% de dégâts contre les boss"],
+    ["DÉCAPAGE", "flame.shred", 0.8, "Chaque tick retire définitivement 0.8 point d'armure"],
+    ["NAPALM COLLANT", "flame.vsSlowed", 0.5, "+50% de dégâts sur une cible ralentie ou étourdie"],
+    ["SURCHAUFFE", "flame.damage", 0.2, "+20% dégâts directs"],
+    ["PRESSION", "flame.range", 0.22, "+22% portée"],
+    ["INJECTION", "flame.rate", 0.16, "+16% cadence"],
+    ["VAPORISATION", "flame.vsShield", 0.45, "+45% de dégâts contre les cibles à bouclier"]
   ],
   aa: [
-    ['OGIVE LOURDE', 'aa.damage', 0.20, '+20% dégâts'],
-    ['SALVE', 'aa.missilesFlat', 1, '+1 missile par salve'],
-    ['GUIDAGE ACTIF', 'aa.turnRate', 0.35, '+35% de guidage'],
-    ['FLAK', 'aa.flakSplash', 0.35, '+35% rayon de flak'],
-    ['VERROUILLAGE MULTIPLE', 'aa.multiLock', 1, 'Les missiles d\'une salve visent des cibles différentes'],
-    ['RADAR LONGUE PORTÉE', 'aa.range', 0.22, '+22% portée'],
-    ['RECHARGEMENT RAPIDE', 'aa.rate', 0.18, '+18% cadence'],
-    ['ANTI-BLINDAGE', 'aa.armorPen', 10, 'Ignore 10 points d\'armure']
+    ["SALVE", "aa.missilesFlat", 1, "+1 missile par salve"],
+    ["GUIDAGE ACTIF", "aa.turnRate", 0.35, "+35% de guidage"],
+    ["FLAK", "aa.flakSplash", 0.35, "+35% rayon de flak"],
+    ["VERROUILLAGE MULTIPLE", "aa.multiLock", 1, "Les missiles d'une salve visent des cibles différentes"],
+    ["ANTI-BLINDAGE", "aa.armorPen", 10, "Ignore 10 points d'armure"],
+    ["CIEL DÉGAGÉ", "aa.vsAir", 0.4, "+40% de dégâts contre les aériens"],
+    ["INTERCEPTION", "aa.vsBoss", 0.55, "+55% de dégâts contre les boss"],
+    ["OGIVE THERMOBARIQUE", "aa.vsShield", 0.6, "+60% de dégâts contre les cibles à bouclier"],
+    ["COUP AU BUT", "aa.fullHp", 0.5, "+50% de dégâts sur une cible encore intacte"],
+    ["ACHÈVEMENT", "aa.lowHp", 0.6, "+60% de dégâts sur les cibles sous 35% de vie"],
+    ["CHARGE PERFORANTE", "aa.shred", 2, "Chaque impact retire définitivement 2 points d'armure"],
+    ["TIR TENDU", "aa.vsSlowed", 0.45, "+45% de dégâts sur une cible ralentie ou étourdie"],
+    ["OGIVE LOURDE", "aa.damage", 0.2, "+20% dégâts"],
+    ["RADAR LONGUE PORTÉE", "aa.range", 0.22, "+22% portée"],
+    ["RECHARGEMENT RAPIDE", "aa.rate", 0.18, "+18% cadence"],
+    ["DÉTONATION DE PROXIMITÉ", "aa.vsBurning", 0.4, "+40% de dégâts sur une cible qui brûle"]
   ],
   player: [
-    ['FORTIFICATION', 'player.lives', 3, '+3 vies maximum'],
-    ['TRÉSOR DE GUERRE', 'player.startGold', 60, '+60 or de départ'],
-    ['PILLAGE', 'player.goldPerKill', 0.12, '+12% or par élimination'],
-    ['LOGISTIQUE', 'player.waveBonus', 0.15, '+15% bonus de fin de vague'],
-    ['RECYCLAGE', 'player.sellRatio', 0.08, '+8% remboursement à la vente'],
-    ['PROSPECTION', 'player.materials', 0.10, '+10% matériaux récoltés'],
-    ['PLACEMENTS', 'player.interest', 0.03, '+3% d\'intérêts sur l\'or en fin de vague'],
-    ['DOCTRINE', 'player.allDamage', 0.05, '+5% dégâts de toutes les tours']
+    ["FORTIFICATION", "player.lives", 3, "+3 vies maximum"],
+    ["TRÉSOR DE GUERRE", "player.startGold", 60, "+60 or de départ"],
+    ["PILLAGE", "player.goldPerKill", 0.12, "+12% or par élimination"],
+    ["LOGISTIQUE", "player.waveBonus", 0.15, "+15% bonus de fin de vague"],
+    ["RECYCLAGE", "player.sellRatio", 0.08, "+8% remboursement à la vente"],
+    ["PROSPECTION", "player.materials", 0.1, "+10% matériaux récoltés"],
+    ["PLACEMENTS", "player.interest", 0.03, "+3% d'intérêts sur l'or en fin de vague"],
+    ["DOCTRINE", "player.allDamage", 0.05, "+5% dégâts de toutes les tours"],
+    ["GÉNIE MILITAIRE", "player.regen", 0.34, "Répare 1 point d'intégrité toutes les 3 vagues"],
+    ["PRIME DE CHASSE", "player.bossBounty", 1, "Les boss rapportent le double de crédits"],
+    ["BOUCLIER DE SECTEUR", "player.leakShield", 1, "La première fuite de chaque vague ne coûte rien"],
+    ["BUTIN DE GUERRE", "player.firstBlood", 25, "La première élimination de chaque vague verse 25 crédits"],
+    ["INGÉNIERIE", "player.upgradeCost", -0.12, "-12% sur le coût des améliorations"],
+    ["CHAÎNE DE PRODUCTION", "player.allCost", -0.08, "-8% sur le coût de toutes les tours"],
+    ["RÉQUISITION", "player.startGold", 90, "+90 or de départ"],
+    ["DERNIER REMPART", "player.lastStand", 0.5, "Sous 5 points d'intégrité, +50% de dégâts partout"]
   ]
 };
+
+
+
 
 // Clés de voûte : modifient une règle du jeu. Rares (3 % des noeuds).
 export const KEYSTONES = {
@@ -735,6 +802,191 @@ export const KEYSTONES = {
 // ============================================================
 //  RENDU
 // ============================================================
+
+// ============================================================
+//  VARIANTES DE TOURELLES
+// ============================================================
+// Chaque tourelle a 3 versions mutuellement exclusives. Le joueur en
+// choisit UNE par tourelle avant de partir en mission (écran de loadout) ;
+// elle s'applique alors à toutes les tourelles de ce type de la partie.
+//
+//   mult   multiplie une stat de base           (damage, rate, range…)
+//   add    ajoute à une stat                    (bounces, missiles, pierce…)
+//   flags  active un comportement dans combat.js
+//   cost   multiplie le prix de construction
+//
+// Les variantes sont des ARBITRAGES, pas des améliorations : ce qu'une
+// version gagne d'un côté, elle le paie de l'autre.
+
+export const VARIANTS = {
+  mg: [
+    {
+      id: 'mg_rate', name: 'ROTATIVE', short: 'CADENCE', icon: '»', accent: '#0d67ff',
+      desc: 'Cadence quasi doublée et montée en régime éclair, mais des balles bien plus légères.',
+      mult: { rate: 1.9, damage: 0.72, spinUp: 0.55 }
+    },
+    {
+      id: 'mg_dmg', name: 'CALIBRE LOURD', short: 'DÉGÂTS', icon: '✦', accent: '#e46363',
+      desc: 'Munitions lourdes qui percent le blindage, au prix d\'une cadence divisée par deux.',
+      mult: { damage: 2.2, rate: 0.52 }, add: { armorPen: 6 }, cost: 1.15
+    },
+    {
+      id: 'mg_range', name: 'AFFÛT LONG', short: 'PORTÉE', icon: '◎', accent: '#71d58a',
+      desc: 'Portée quasi doublée : une seule tourelle couvre plusieurs boucles du chemin.',
+      mult: { range: 1.85, damage: 0.85, rate: 0.9 }
+    }
+  ],
+
+  sniper: [
+    {
+      id: 'sniper_rate', name: 'CULASSE AUTO', short: 'CADENCE', icon: '»', accent: '#0d67ff',
+      desc: 'Tire deux fois plus vite, avec des balles moins lourdes.',
+      mult: { rate: 2.1, damage: 0.6 }
+    },
+    {
+      id: 'sniper_dmg', name: 'ANTI-MATÉRIEL', short: 'DÉGÂTS', icon: '✦', accent: '#e46363',
+      desc: 'Un coup, un trou : dégâts massifs, traverse deux cibles de plus, mais tire lentement.',
+      mult: { damage: 2.5, rate: 0.62 }, add: { pierce: 2 }, cost: 1.2
+    },
+    {
+      id: 'sniper_support', name: 'POSTE DE COMMANDEMENT', short: 'SUPPORT', icon: '✚', accent: '#71d58a',
+      desc: 'Tire faiblement, mais toutes les 3 vagues elle rend 1 point d\'intégrité et verse une prime en crédits.',
+      mult: { damage: 0.5, rate: 0.8 }, flags: { support: true }, cost: 1.1,
+      supportEvery: 3, supportLives: 1, supportGoldBase: 45, supportGoldPerWave: 8
+    }
+  ],
+
+  mortar: [
+    {
+      id: 'mortar_rate', name: 'TIR EN RAFALE', short: 'CADENCE', icon: '»', accent: '#0d67ff',
+      desc: 'Obus plus légers mais deux fois plus fréquents, et un temps de vol raccourci.',
+      mult: { rate: 2.0, damage: 0.68, arcTime: 0.7 }
+    },
+    {
+      id: 'mortar_nuke', name: 'OGIVE NUCLÉAIRE', short: 'NUCLÉAIRE', icon: '☢', accent: '#f0d24b',
+      desc: 'Très lente, mais dévastatrice : énorme explosion, puis une zone irradiée qui continue à ronger tout ce qui la traverse.',
+      mult: { damage: 4.6, rate: 0.32, splash: 2.0, arcTime: 1.9 },
+      flags: { nuke: true }, cost: 1.7
+    },
+    {
+      id: 'mortar_stun', name: 'OBUS À CONCUSSION', short: 'ÉTOURDIT', icon: '◉', accent: '#8ad8ff',
+      desc: 'Dégâts réduits, mais chaque explosion cloue sur place tout ce qu\'elle touche pendant un instant.',
+      mult: { damage: 0.72, splash: 1.25 }, flags: { stun: 0.7 }
+    }
+  ],
+
+  tesla: [
+    {
+      id: 'tesla_bounces', name: 'ARC MULTIPLE', short: 'ÉCLAIRS', icon: '⌁', accent: '#0d67ff',
+      desc: 'Deux fois plus de rebonds et une meilleure conservation des dégâts : ravage les groupes serrés.',
+      mult: { damage: 0.72 }, add: { bounces: 5, bounceFalloff: 0.07 }
+    },
+    {
+      id: 'tesla_dmg', name: 'SURTENSION', short: 'DÉGÂTS', icon: '✦', accent: '#e46363',
+      desc: 'Décharge bien plus violente, mais l\'arc ne rebondit presque plus.',
+      mult: { damage: 2.4, rate: 0.85 }, add: { bounces: -3 }, cost: 1.15
+    },
+    {
+      id: 'tesla_range', name: 'CHAMP ÉTENDU', short: 'PORTÉE', icon: '◎', accent: '#71d58a',
+      desc: 'Portée et distance de rebond très augmentées : la chaîne court beaucoup plus loin.',
+      mult: { range: 1.7, bounceRange: 1.65, damage: 0.85 }
+    }
+  ],
+
+  flame: [
+    {
+      id: 'flame_reach', name: 'LANCE LONGUE', short: 'PORTÉE', icon: '◎', accent: '#71d58a',
+      desc: 'Un jet beaucoup plus long, mais un cône plus étroit : redoutable sur une ligne droite.',
+      mult: { range: 1.95, cone: 0.65 }
+    },
+    {
+      id: 'flame_nova', name: 'BRASIER', short: 'TOUT AUTOUR', icon: '❋', accent: '#ff7a29',
+      desc: 'Ne vise plus : brûle en permanence tout ce qui l\'entoure, sur 360°. À placer au cœur du trafic.',
+      mult: { range: 0.88, damage: 0.8 }, set: { cone: 360 },
+      flags: { omni: true }, cost: 1.25
+    },
+    {
+      id: 'flame_thermite', name: 'THERMITE', short: 'DÉGÂTS', icon: '✦', accent: '#e46363',
+      desc: 'Flammes bien plus chaudes et brûlure dévastatrice, sur une portée un peu plus courte.',
+      mult: { damage: 2.2, burnDps: 2.5, range: 0.88, rate: 0.85 }, cost: 1.2
+    }
+  ],
+
+  aa: [
+    {
+      id: 'aa_salvo', name: 'SALVE', short: 'SALVE', icon: '⁂', accent: '#0d67ff',
+      desc: 'Trois missiles par tir au lieu d\'un, plus légers : sature le ciel.',
+      mult: { damage: 0.52 }, add: { missiles: 2 }
+    },
+    {
+      id: 'aa_multilock', name: 'VERROUILLAGE MULTIPLE', short: 'MULTI-LOCK', icon: '⊹', accent: '#58b7e9',
+      desc: 'Chaque missile d\'une salve part sur une cible différente : aucun tir gaspillé sur un mourant.',
+      mult: { damage: 0.8 }, add: { missiles: 1 }, flags: { multiLock: true }
+    },
+    {
+      id: 'aa_versatile', name: 'POLYVALENTE', short: 'SOL + AIR', icon: '✛', accent: '#71d58a',
+      desc: 'Peut aussi frapper le sol, avec des dégâts très réduits — cesse d\'être une tour spécialisée.',
+      mult: { damage: 0.9 }, targets: TARGET.BOTH, flags: { groundPenalty: 0.4 }, cost: 1.3
+    }
+  ]
+};
+
+/** Ordre d'affichage des tourelles dans l'écran de loadout. */
+export const VARIANT_ORDER = ['mg', 'sniper', 'mortar', 'tesla', 'flame', 'aa'];
+
+/** Index plat id → { archetype, index, def }, pour retrouver une variante. */
+export const VARIANT_BY_ID = (() => {
+  const map = Object.create(null);
+  for (const arche of VARIANT_ORDER) {
+    VARIANTS[arche].forEach((v, i) => { map[v.id] = { archetype: arche, index: i, def: v }; });
+  }
+  return map;
+})();
+
+// Anneaux qui portent les nœuds « VARIANTE » : très loin du centre, il
+// faut réellement creuser une branche pour ouvrir ses versions.
+export const VARIANT_RINGS = [7, 13, 20];
+
+// ============================================================
+//  SYMBOLES DES NŒUDS
+// ============================================================
+// Chaque nœud affiche un pictogramme disant ce qu'il apporte, pour qu'on
+// lise l'arbre d'un coup d'œil sans survoler chaque case.
+
+const ICON_RULES = [
+  [/\.damage$|allDamage/, '✦'],   // dégâts bruts
+  [/\.rate$/, '»'],               // cadence
+  [/\.range$/, '◎'],              // portée
+  [/\.cost$/, '¤'],               // prix
+  [/crit/i, '✷'],                 // critique
+  [/pierce|armorPen/i, '➤'],      // perçage
+  [/splash|flakSplash/i, '◍'],    // zone
+  [/burn|craterDps|inferno|combust|melt|spread/i, '≈'],  // feu
+  [/bounce|chain|emp|storm|overload|charge/i, '⌁'],      // électricité
+  [/missile|salvo|barrage|cluster/i, '⁂'],               // munitions
+  [/spin|deluge|fusillade/i, '◔'],                       // montée en régime
+  [/cone|dragon|omni/i, '❋'],                            // cône / diffusion
+  [/stun|slow|implode/i, '◉'],                           // contrôle
+  [/lives|command|survivor|fortif/i, '♥'],               // survie
+  [/gold|interest|sellRatio|waveBonus|war/i, '$'],       // économie
+  [/materials/i, '◈'],                                   // méta
+  [/vsShield|emp|shield/i, '⛨'],                         // anti-bouclier
+  [/turnRate|guidage|arcTime|silence/i, '⥁'],           // trajectoire
+  [/ricochet|shrapnel|multiLock|infinite/i, '✳'],       // dispersion
+  [/regen|leakShield|lastStand/i, '⚕'],                 // soutien defensif
+  [/bossBounty|firstBlood|allCost|upgradeCost/i, '¤'],  // economie bis
+  [/vsBoss|execute|oneshot|cascade/i, '☠'],              // exécution
+  [/vsAir|nofly/i, '✈'],                                 // antiaérien
+  [/vsGround|wall|scorched|carpet/i, '▦'],               // sol
+  [/shred|vsArmor/i, '⊘'],                               // anti-blindage
+  [/lowHp|fullHp|opener|finisher/i, '◐']                 // conditionnel
+];
+
+export function iconForKey(key) {
+  if (!key) return '•';
+  for (const [re, glyph] of ICON_RULES) if (re.test(key)) return glyph;
+  return '•';
+}
 
 export const FX = {
   maxParticles: 1400,

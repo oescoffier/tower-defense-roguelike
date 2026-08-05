@@ -3,7 +3,7 @@
 //  × modificateurs de l'arbre), ciblage, tir et rendu.
 // ============================================================
 
-import { TOWERS, COMMANDERS, TARGET, PALETTE, GRID, PRIORITY } from './config.js';
+import { TOWERS, COMMANDERS, TARGET, PALETTE, GRID, PRIORITY, VARIANTS, VARIANT_BY_ID } from './config.js';
 import { Weapons, enemiesInRange, selectTarget } from './combat.js';
 
 const C = GRID.cell;
@@ -16,11 +16,27 @@ export const m = (mods, key) => mods[key] || 0;
 export function getTowerDef(id) { return COMMANDERS[id] || TOWERS[id]; }
 
 /** Coût de construction, modificateurs inclus (les commandants ont un coût fixe). */
-export function towerCost(id, mods) {
+export function towerCost(id, mods, variantId) {
   if (COMMANDERS[id]) return COMMANDERS[id].cost;
-  const base = TOWERS[id].cost;
-  const mult = Math.max(0.4, 1 + m(mods, `${id}.cost`));
+  let base = TOWERS[id].cost;
+  // Une variante peut coûter plus cher que la version de base.
+  const entry = variantId ? VARIANT_BY_ID[variantId] : null;
+  if (entry && entry.def.cost) base = Math.round(base * entry.def.cost);
+  const mult = Math.max(0.4, 1 + m(mods, `${id}.cost`) + m(mods, 'player.allCost'));
   return Math.max(10, Math.round(base * mult));
+}
+
+
+/**
+ * Variante active pour un archétype donné, d'après le loadout de la partie.
+ * Retourne null pour la version de base.
+ */
+export function variantFor(archetype, loadout) {
+  if (!loadout) return null;
+  const id = loadout[archetype];
+  if (!id) return null;
+  const entry = VARIANT_BY_ID[id];
+  return (entry && entry.archetype === archetype) ? entry.def : null;
 }
 
 let tuid = 1;
@@ -56,6 +72,9 @@ export class Tower {
     this.kills = 0;
     this.damageDealt = 0;
     this.stats = {};
+    // Variante choisie au loadout pour cet archetype (null = version de base).
+    this.variant = variantFor(this.archetype, game.loadout);
+    this.variantFlags = (this.variant && this.variant.flags) || {};
     this.recompute(game.mods);
   }
 
@@ -88,6 +107,7 @@ export class Tower {
     s.damage = d.damage * up.damage * (1 + m(mods, `${id}.damage`)) * global;
     s.rate = d.rate * up.rate * (1 + m(mods, `${id}.rate`));
     s.range = d.range * up.range * (1 + m(mods, `${id}.range`));
+    s.armorPen = m(mods, `${id}.armorPen`);
     s.mask = d.targets;
 
     switch (id) {
@@ -126,6 +146,33 @@ export class Tower {
         break;
     }
 
+    // --- Variante ---
+    // Appliquee EN DERNIER : une variante redefinit l'identite de la tour,
+    // elle doit donc primer sur les upgrades comme sur l'arbre.
+    const v = this.variant;
+    if (v) {
+      if (v.mult) {
+        for (const [k, val] of Object.entries(v.mult)) {
+          if (typeof s[k] === 'number') s[k] *= val;
+        }
+      }
+      if (v.add) {
+        for (const [k, val] of Object.entries(v.add)) {
+          s[k] = (typeof s[k] === 'number' ? s[k] : 0) + val;
+        }
+      }
+      // `set` impose une valeur absolue : indispensable quand la variante
+      // definit une geometrie (un tir sur 360 deg reste 360, quels que
+      // soient les bonus d'angle accumules dans l'arbre).
+      if (v.set) {
+        for (const [k, val] of Object.entries(v.set)) s[k] = val;
+      }
+      if (v.targets !== undefined) s.mask = v.targets;
+      if (s.cone !== undefined) s.cone = Math.min(360, s.cone);
+      if (s.bounces !== undefined) s.bounces = Math.max(0, Math.round(s.bounces));
+      if (s.bounceFalloff !== undefined) s.bounceFalloff = Math.min(0.98, s.bounceFalloff);
+    }
+
     this.stats = s;
     this.rangePx = s.range * C;
   }
@@ -146,7 +193,9 @@ export class Tower {
   upgradeCost(mods) {
     if (this.level >= this.def.upgrades.length) return null;
     const base = this.def.upgrades[this.level].cost;
-    return Math.max(10, Math.round(base * Math.max(0.4, 1 + m(mods, `${this.id}.cost`))));
+    const mult = Math.max(0.4, 1 + m(mods, `${this.id}.cost`)
+      + m(mods, 'player.allCost') + m(mods, 'player.upgradeCost'));
+    return Math.max(10, Math.round(base * mult));
   }
 
   upgrade(game) {

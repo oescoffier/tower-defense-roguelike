@@ -151,9 +151,11 @@ export class Projectile {
     this.y += this.vy * dt;
     this.vx *= Math.pow(0.94, dt * 60);
     this.vy *= Math.pow(0.94, dt * 60);
-    const hit = enemiesInRange(game, this.x, this.y, 9, this.mask);
-    if (hit.length) {
-      hit[0].damage(this.damage, { type: 'frag', source: this.source || null }, game);
+    const hits = enemiesInRange(game, this.x, this.y, 9, this.mask);
+    if (hits.length) {
+      const victim = hits[0];
+      if (this.source) hit(this.source, victim, game, this.damage, { type: 'frag' });
+      else victim.damage(this.damage, { type: 'frag' }, game);
       game.vfx.impact(this.x, this.y, PALETTE.gold, 3, 0.5);
       this.dead = true;
     }
@@ -256,6 +258,81 @@ function rayHits(game, x1, y1, x2, y2, mask) {
   return hits;
 }
 
+
+
+/**
+ * Retombées de l'OGIVE NUCLÉAIRE : après l'explosion, une large zone
+ * irradiée continue à ronger tout ce qui la traverse. On réutilise le
+ * système de cratères du mortier, avec un rayon et des dégâts propres.
+ */
+export function nukeFallout(game, tower, x, y, radiusPx) {
+  const r = radiusPx * 1.25;
+  const life = 9;
+  game.vfx.crater(x, y, r, life);
+  tower.craters.push({ x, y, r, until: game.time + life, dps: tower.stats.damage * 0.09 });
+  if (tower.craters.length > 6) tower.craters.shift();
+
+  // Champignon : anneaux concentriques + colonne de particules
+  for (let i = 0; i < 3; i++) {
+    game.vfx.ring(x, y, r * 0.2, r * (1.1 + i * 0.35), 0.6 + i * 0.2, PALETTE.ok, 4 - i);
+  }
+  for (let i = 0; i < 30; i++) {
+    const a = Math.random() * TAU;
+    const sp = 40 + Math.random() * 120;
+    game.vfx.particle(x, y, Math.cos(a) * sp, Math.sin(a) * sp - 120,
+      0.8 + Math.random() * 0.7, i % 3 ? PALETTE.ok : '#ffffff',
+      3 + Math.random() * 4, { drag: 0.93, glow: true, fade: 0.6 });
+  }
+  game.vfx.addShake(12);
+  game.vfx.addFlash(0.35, PALETTE.ok);
+  game.vfx.addChroma(7);
+}
+
+
+
+// ============================================================
+//  RÉSOLUTION D'UN COUP
+//  Point de passage unique de tous les dégâts infligés par une tour.
+//  C'est ici que s'appliquent les notables CONDITIONNELS de l'arbre
+//  (contre les boss, les blindés, les cibles en feu, à faible vie...)
+//  ainsi que les effets de variante liés à la cible.
+// ============================================================
+export function hit(tower, enemy, game, damage, opts = {}) {
+  if (!enemy || enemy.dead) return 0;
+  const mods = game.mods || {};
+  let mult = 1;
+
+  if (tower) {
+    const a = tower.archetype;
+    const g = (k) => mods[a + '.' + k] || 0;
+
+    if (enemy.boss) mult += g('vsBoss');
+    if (enemy.air) mult += g('vsAir'); else mult += g('vsGround');
+    if (enemy.armor > 0) mult += g('vsArmor');
+    if (enemy.shield > 0) mult += g('vsShield');
+    if (enemy.burning) mult += g('vsBurning');
+    if (enemy.hpRatio < 0.35) mult += g('lowHp');
+    if (enemy.hpRatio > 0.9) mult += g('fullHp');
+    if (game.time < enemy.slowUntil || game.time < enemy.stunUntil) mult += g('vsSlowed');
+
+    // Effritement d'armure : définitif, contrairement à la pénétration.
+    const shred = g('shred');
+    if (shred > 0 && enemy.armor > 0) enemy.armor = Math.max(0, enemy.armor - shred);
+
+    // Variante POLYVALENTE de la DCA : elle peut viser le sol, mais mal.
+    const flags = tower.variantFlags || EMPTY_FLAGS;
+    if (flags.groundPenalty && !enemy.air) mult *= flags.groundPenalty;
+  }
+
+  // DERNIER REMPART : sursaut général quand la base est presque tombée.
+  if (mods['player.lastStand'] && game.lives <= 5) mult += mods['player.lastStand'];
+
+  const o = opts.source === undefined ? { ...opts, source: tower } : opts;
+  return enemy.damage(damage * mult, o, game);
+}
+
+export const EMPTY_FLAGS = Object.freeze({});
+
 // ----------------------------------------------------------
 //  Explosion générique
 // ----------------------------------------------------------
@@ -265,11 +342,13 @@ export function explode(game, x, y, radiusPx, damage, opts = {}) {
   for (const e of list) {
     const d = Math.hypot(e.x - x, e.y - y);
     const falloff = opts.flat ? 1 : Math.max(0.35, 1 - (d / radiusPx) * 0.55);
-    e.damage(damage * falloff, {
+    const dmgOpts = {
       type: opts.type || 'explosion',
       armorPen: opts.armorPen || 0,
       source: opts.source || null   // sans ça, mortier et DCA ne se voient jamais créditer leurs éliminations
-    }, game);
+    };
+    if (opts.source) hit(opts.source, e, game, damage * falloff, dmgOpts);
+    else e.damage(damage * falloff, dmgOpts, game);
     if (opts.stun) e.stunUntil = Math.max(e.stunUntil, game.time + opts.stun);
     if (opts.pull) {
       const dd = Math.hypot(e.x - x, e.y - y) || 1;
@@ -309,7 +388,7 @@ export const Weapons = {
       mask: t.stats.mask, maxLife: 1.4,
       onHit: (g, e) => {
         const wall = game.mods['mg.wall'] && Math.hypot(e.x - t.px, e.y - t.py) < C;
-        e.damage(dmg * (wall ? 1.6 : 1), { armorPen: game.mods['mg.armorPen'] || 0, source: t }, g);
+        hit(t, e, g, dmg * (wall ? 1.6 : 1), { armorPen: t.stats.armorPen || 0 });
         g.vfx.impact(e.x, e.y, '#ffe9a8', 4, 0.7);
         const slow = game.mods['mg.slow'] || 0;
         if (slow > 0) e.applySlow(slow, 0.6, g);
@@ -325,7 +404,7 @@ export const Weapons = {
               color: PALETTE.accent, mask: t.stats.mask, maxLife: 0.6,
               ignore: new Set([e.id]),
               onHit: (g2, e2) => {
-                e2.damage(dmg * 0.6, { source: t }, g2);
+                hit(t, e2, g2, dmg * 0.6, { armorPen: t.stats.armorPen || 0 });
                 g2.vfx.impact(e2.x, e2.y, PALETTE.accent, 3, 0.5);
               }
             }));
@@ -363,7 +442,7 @@ export const Weapons = {
         e.damage(e.hp + e.shield + 9999, { ignoreArmor: true, crit: true, source: t }, game);
         killed = true;
       } else {
-        e.damage(dmg, { ignoreArmor: true, crit, source: t }, game);
+        hit(t, e, game, dmg, { ignoreArmor: true, crit });
         if (e.dead) killed = true;
       }
       if (game.mods['sniper.burn']) {
@@ -406,12 +485,15 @@ export const Weapons = {
         maxLife: t.stats.arcTime + 0.3,
         onHit: (g) => {
           const r = t.stats.splash * C;
+          const vf = t.variantFlags || {};
           explode(g, tx, ty, r, t.stats.damage, {
             mask: TARGET.GROUND, source: t,
-            stun: game.mods['mortar.stun'] || 0,
+            stun: (game.mods['mortar.stun'] || 0) + (vf.stun || 0),
             pull: !!game.mods['mortar.implode'],
-            power: 1.2
+            power: vf.nuke ? 2.2 : 1.2,
+            color: vf.nuke ? PALETTE.ok : PALETTE.fire
           });
+          if (vf.nuke) nukeFallout(g, t, tx, ty, r);
           // "Permanents" veut dire "toute la vague", pas "pour le reste de la
           // partie" : bornés à 60s (bien plus long qu'une vague normale) et
           // nettoyés au démarrage de la vague suivante (Tower.onWaveStart),
@@ -456,7 +538,7 @@ export const Weapons = {
         cur.shield = Math.max(0, cur.shield - cur.maxShield * emp);
       }
       const cheap = infinite && cur.hpRatio < 0.2;
-      cur.damage(dmg, { type: 'tesla', source: t }, game);
+      hit(t, cur, game, dmg, { type: 'tesla' });
       // Marque « chargé »
       cur.charged = Math.max(cur.charged, t.stats.chargeDur);
       cur.chargedDmg += dmg * 0.4;
@@ -500,7 +582,7 @@ export const Weapons = {
       let diff = Math.abs(((ea - a + Math.PI * 3) % TAU) - Math.PI);
       const angularPad = Math.atan2(e.radius, Math.max(1, Math.hypot(e.x - t.px, e.y - t.py)));
       if (diff > half + angularPad) continue;
-      e.damage(t.stats.damage, { type: 'flame', source: t }, game);
+      hit(t, e, game, t.stats.damage, { type: 'flame' });
       e.applyBurn(t.stats.burnDps, infernoDur, t.stats.burnStacks, game, melt);
       if (spread > 0) {
         for (const o of enemiesInRange(game, e.x, e.y, spread * C, mask)) {
@@ -514,9 +596,9 @@ export const Weapons = {
   // ---------- DCA ----------
   aa(t, game, target) {
     const n = Math.max(1, Math.round(t.stats.missiles));
-    const multi = !!game.mods['aa.multiLock'];
+    const multi = !!(game.mods['aa.multiLock'] || (t.variantFlags && t.variantFlags.multiLock));
     const pool = multi
-      ? enemiesInRange(game, t.px, t.py, t.stats.range * C, TARGET.AIR)
+      ? enemiesInRange(game, t.px, t.py, t.stats.range * C, t.stats.mask)
       : [target];
 
     for (let i = 0; i < n; i++) {
@@ -528,13 +610,13 @@ export const Weapons = {
         kind: 'missile',
         x: t.px + Math.cos(launchA) * 14, y: t.py + Math.sin(launchA) * 14,
         angle: launchA, speed: t.def.missileSpeed * C * 0.5, maxSpeed: t.def.missileSpeed * C * 1.6,
-        turnRate: t.stats.turnRate, target: tgt, mask: TARGET.AIR, maxLife: 4.5, trailLen: 10,
+        turnRate: t.stats.turnRate, target: tgt, mask: t.stats.mask, maxLife: 4.5, trailLen: 10,
         onHit: (g, e) => {
           if (!e) return;
           const r = t.stats.flakSplash * C;
           explode(g, e.x, e.y, r, t.stats.damage * bonus, {
-            mask: TARGET.AIR, color: PALETTE.air, power: 0.55, source: t,
-            armorPen: game.mods['aa.armorPen'] || 0
+            mask: t.stats.mask, color: PALETTE.air, power: 0.55, source: t,
+            armorPen: t.stats.armorPen || 0
           });
           if (game.mods['aa.cluster']) {
             for (let k = 0; k < 3; k++) {

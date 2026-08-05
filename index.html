@@ -160,6 +160,36 @@
     </div>
   </section>
 
+  <!-- ==================== PRÉPARATION DE MISSION ==================== -->
+  <section id="screen-loadout" class="screen">
+    <div class="lo-layout">
+      <header class="lo-top panel">
+        <button class="btn btn-ghost btn-sm" id="lo-back">◀ RETOUR</button>
+        <div class="lo-title">PRÉPARATION DE MISSION</div>
+        <div class="lo-mats">
+          <span class="label">VARIANTES</span>
+          <b id="lo-count">0 / 18</b>
+        </div>
+      </header>
+
+      <div class="lo-intro panel">
+        Chaque tourelle existe en plusieurs versions, aux compromis très différents.
+        Choisis celle que tu emmènes : elle s'appliquera à <b>toutes</b> les tourelles de ce type
+        pendant la partie. Les versions verrouillées s'ouvrent dans l'<b>arbre de compétences</b>,
+        loin du centre de chaque branche. Ton choix est mémorisé d'une partie à l'autre.
+      </div>
+
+      <div class="lo-grid" id="lo-grid"></div>
+
+      <footer class="lo-bottom panel">
+        <div class="lo-summary" id="lo-summary"></div>
+        <button class="btn btn-primary btn-lg" id="lo-deploy">
+          <span>DÉPLOYER</span><i class="btn-arrow">▶</i>
+        </button>
+      </footer>
+    </div>
+  </section>
+
   <!-- ==================== JEU ==================== -->
   <section id="screen-game" class="screen">
     <div class="game-layout">
@@ -213,9 +243,6 @@
 
             <div class="toast-stack" id="toast-stack"></div>
 
-            <div class="prep-badge" id="prep-badge">
-              <span>PRÉPARATION</span><b id="prep-time">12</b>
-            </div>
 
             <!-- Panneau de coaching du tutoriel : ancré au plateau, jamais
                  plein écran, pour que l'action reste visible pendant la lecture. -->
@@ -246,6 +273,8 @@
             <button class="btn btn-primary btn-wave" id="btn-wave">
               <span id="btn-wave-label">LANCER LA VAGUE 1</span>
             </button>
+            <button class="btn btn-ghost btn-sm btn-auto" id="btn-auto-wave"
+                    title="Enchaîner les vagues sans cliquer">AUTO</button>
             <div class="wave-progress"><i id="wave-progress-bar"></i></div>
             <button class="btn btn-ghost btn-sm" id="btn-pause">PAUSE</button>
           </div>
