@@ -14,6 +14,8 @@ const DEFAULTS = () => ({
   totalMaterials: 0,
   lastRun: null,
   onboardingSeen: false,
+  tutorialDone: false,
+  tutorialRewarded: false,
   settings: { speed: 1, shake: true }
 });
 
@@ -35,6 +37,16 @@ export class Save {
 
   get onboardingSeen() { return !!this.data.onboardingSeen; }
   markOnboardingSeen() { this.data.onboardingSeen = true; this.persist(); }
+
+  get tutorialDone() { return !!this.data.tutorialDone; }
+  /** La récompense de fin d'entraînement n'est versée qu'une seule fois. */
+  markTutorialDone() {
+    this.data.tutorialDone = true;
+    const first = !this.data.tutorialRewarded;
+    this.data.tutorialRewarded = true;
+    this.persist();
+    return first;
+  }
 
   load() {
     try {

@@ -60,8 +60,11 @@
           <button class="btn btn-ghost btn-lg" id="btn-commander">
             <span>COMMANDANT</span><i class="btn-badge" id="commander-badge">AUCUN</i>
           </button>
+          <button class="btn btn-ghost btn-lg" id="btn-tutorial">
+            <span>ENTRAÎNEMENT</span><i class="btn-badge" id="tutorial-badge">NOUVEAU</i>
+          </button>
           <button class="btn btn-ghost btn-lg" id="btn-help">
-            <span>COMMENT JOUER</span>
+            <span>AIDE-MÉMOIRE</span>
           </button>
         </div>
       </div>
@@ -214,6 +217,21 @@
               <span>PRÉPARATION</span><b id="prep-time">12</b>
             </div>
 
+            <!-- Panneau de coaching du tutoriel : ancré au plateau, jamais
+                 plein écran, pour que l'action reste visible pendant la lecture. -->
+            <div class="tuto-coach" id="tuto-coach" hidden>
+              <div class="tuto-coach-bar">
+                <span class="tuto-step" id="tuto-step">1/9</span>
+                <span class="tuto-title" id="tuto-title">—</span>
+                <button class="tuto-skip" id="tuto-skip" title="Quitter l'entraînement">QUITTER ✕</button>
+              </div>
+              <p class="tuto-text" id="tuto-text">—</p>
+              <div class="tuto-foot">
+                <span class="tuto-objective" id="tuto-objective"></span>
+                <button class="btn btn-primary btn-sm tuto-next" id="tuto-next" hidden>CONTINUER ▶</button>
+              </div>
+            </div>
+
             <div class="pause-overlay" id="pause-overlay" hidden>
               <div class="pause-text">PAUSE</div>
               <div class="pause-sub">ESPACE pour reprendre</div>
@@ -306,10 +324,15 @@
   <div class="help-backdrop" id="help-backdrop"></div>
   <div class="help-panel panel shadow-accent">
     <div class="help-head">
-      <h2>COMMENT JOUER</h2>
+      <h2>AIDE-MÉMOIRE</h2>
       <button class="btn btn-ghost btn-sm" id="help-close">FERMER ✕</button>
     </div>
     <div class="help-body">
+      <section class="help-section help-cta" id="help-cta">
+        <h3>JAMAIS JOUÉ ?</h3>
+        <p>L'<b>ENTRAÎNEMENT</b> t'apprend tout en jouant, en quelques minutes : une carte dédiée, des vagues préparées, et les explications au moment où elles servent.</p>
+        <button class="btn btn-primary btn-block" id="help-start-tutorial">LANCER L'ENTRAÎNEMENT ▶</button>
+      </section>
       <section class="help-section">
         <h3>OBJECTIF</h3>
         <p>Empêche les ennemis d'atteindre ta base. Chaque ennemi qui passe retire de l'<b>INTÉGRITÉ</b> — à zéro, la partie s'arrête. Il n'y a pas de fin : le but est de tenir le plus de vagues possible.</p>

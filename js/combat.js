@@ -153,7 +153,7 @@ export class Projectile {
     this.vy *= Math.pow(0.94, dt * 60);
     const hit = enemiesInRange(game, this.x, this.y, 9, this.mask);
     if (hit.length) {
-      hit[0].damage(this.damage, { type: 'frag' }, game);
+      hit[0].damage(this.damage, { type: 'frag', source: this.source || null }, game);
       game.vfx.impact(this.x, this.y, PALETTE.gold, 3, 0.5);
       this.dead = true;
     }
@@ -265,7 +265,11 @@ export function explode(game, x, y, radiusPx, damage, opts = {}) {
   for (const e of list) {
     const d = Math.hypot(e.x - x, e.y - y);
     const falloff = opts.flat ? 1 : Math.max(0.35, 1 - (d / radiusPx) * 0.55);
-    e.damage(damage * falloff, { type: opts.type || 'explosion', armorPen: opts.armorPen || 0 }, game);
+    e.damage(damage * falloff, {
+      type: opts.type || 'explosion',
+      armorPen: opts.armorPen || 0,
+      source: opts.source || null   // sans ça, mortier et DCA ne se voient jamais créditer leurs éliminations
+    }, game);
     if (opts.stun) e.stunUntil = Math.max(e.stunUntil, game.time + opts.stun);
     if (opts.pull) {
       const dd = Math.hypot(e.x - x, e.y - y) || 1;
@@ -403,7 +407,7 @@ export const Weapons = {
         onHit: (g) => {
           const r = t.stats.splash * C;
           explode(g, tx, ty, r, t.stats.damage, {
-            mask: TARGET.GROUND,
+            mask: TARGET.GROUND, source: t,
             stun: game.mods['mortar.stun'] || 0,
             pull: !!game.mods['mortar.implode'],
             power: 1.2
@@ -421,7 +425,7 @@ export const Weapons = {
             const a = rand(0, TAU);
             g.projectiles.push(new Projectile({
               kind: 'frag', x: tx, y: ty, vx: Math.cos(a) * rand(150, 300), vy: Math.sin(a) * rand(150, 300),
-              damage: t.stats.damage * 0.28, mask: TARGET.GROUND, maxLife: 0.7
+              damage: t.stats.damage * 0.28, mask: TARGET.GROUND, maxLife: 0.7, source: t
             }));
           }
         }
@@ -529,7 +533,7 @@ export const Weapons = {
           if (!e) return;
           const r = t.stats.flakSplash * C;
           explode(g, e.x, e.y, r, t.stats.damage * bonus, {
-            mask: TARGET.AIR, color: PALETTE.air, power: 0.55,
+            mask: TARGET.AIR, color: PALETTE.air, power: 0.55, source: t,
             armorPen: game.mods['aa.armorPen'] || 0
           });
           if (game.mods['aa.cluster']) {
@@ -540,7 +544,7 @@ export const Weapons = {
                 speed: 200, maxSpeed: 620, turnRate: t.stats.turnRate * 1.4,
                 target: null, mask: TARGET.AIR, maxLife: 1.6, trailLen: 5,
                 onHit: (g2, e2) => {
-                  if (e2) explode(g2, e2.x, e2.y, r * 0.6, t.stats.damage * 0.3, { mask: TARGET.AIR, color: PALETTE.air, power: 0.3 });
+                  if (e2) explode(g2, e2.x, e2.y, r * 0.6, t.stats.damage * 0.3, { mask: TARGET.AIR, color: PALETTE.air, power: 0.3, source: t });
                 }
               }));
             }

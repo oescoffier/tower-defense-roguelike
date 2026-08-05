@@ -7,7 +7,13 @@ import { GRID, CELL } from './config.js';
 import { Rng } from './rng.js';
 
 export class Grid {
-  constructor(seed = 1) {
+  /**
+   * @param {number} seed
+   * @param {object} [fixed]  carte imposée (tutoriel) : { layout, spawn, base,
+   *                          airEdge, airFrac, airBowSign }. Quand elle est
+   *                          fournie, aucune génération aléatoire n'a lieu.
+   */
+  constructor(seed = 1, fixed = null) {
     this.cols = GRID.cols;
     this.rows = GRID.rows;
     this.cell = GRID.cell;
@@ -22,7 +28,8 @@ export class Grid {
     this.airEdge = 2;
     this.airFrac = 0.5;
 
-    this.generate(seed);
+    if (fixed) this.applyFixed(fixed);
+    else this.generate(seed);
 
     // Champ de distance BFS (distance en cases jusqu'à la base) + chemin de référence
     this.dist = new Int32Array(this.cols * this.rows).fill(-1);
@@ -55,6 +62,38 @@ export class Grid {
   //     travers le centre de cette silhouette (obligatoire pour le sol).
   //  3. Un motif d'obstacles (this.terrain) est généré à l'intérieur.
   // ----------------------------------------------------------
+  /**
+   * Carte dessinée à la main plutôt que générée : chaque caractère du
+   * `layout` décrit une case (# roche, S apparition, B base, tout le
+   * reste = libre). Utilisé par le tutoriel, dont les leçons reposent
+   * sur des cases précises.
+   */
+  applyFixed(fixed) {
+    this.shape = 'full';
+    this.terrain = 'fixed';
+    this.cells.fill(CELL.EMPTY);
+
+    const rows = fixed.layout || [];
+    for (let y = 0; y < this.rows; y++) {
+      const line = rows[y] || '';
+      for (let x = 0; x < this.cols; x++) {
+        this.set(x, y, line[x] === '#' ? CELL.ROCK : CELL.EMPTY);
+      }
+    }
+
+    this.spawn = { ...fixed.spawn };
+    this.base = { ...fixed.base };
+    this.set(this.spawn.x, this.spawn.y, CELL.SPAWN);
+    this.set(this.base.x, this.base.y, CELL.BASE);
+
+    const cx = (this.cols - 1) / 2, cy = (this.rows - 1) / 2;
+    this.spawnEdge = this._approxEdge(this.spawn, cx, cy);
+    this.baseEdge = this._approxEdge(this.base, cx, cy);
+    this.airEdge = fixed.airEdge !== undefined ? fixed.airEdge : 2;
+    this.airFrac = fixed.airFrac !== undefined ? fixed.airFrac : 0.5;
+    this.airBowSign = fixed.airBowSign || 1;
+  }
+
   generate(seed) {
     const rng = new Rng(seed);
     this.cells.fill(CELL.EMPTY);

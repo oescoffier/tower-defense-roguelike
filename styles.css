@@ -984,6 +984,142 @@ b { font-weight: 700; }
 .over-actions .btn-lg { width: 100%; }
 
 /* ============================================================
+   TUTORIEL
+   ============================================================ */
+
+/* --- Panneau de coaching, ancré en bas du plateau --- */
+.tuto-coach {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 7;
+  background: var(--bg);
+  border: 2px solid var(--gold);
+  box-shadow: 7px 7px 0 rgba(240, 210, 75, 0.28);
+  padding: 12px 14px;
+  line-height: normal;
+  animation: tutoIn 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* Le bandeau chevauche le plateau : il ne doit pas voler les clics
+     destinés aux cases situées dessous. Seuls ses boutons les captent. */
+  pointer-events: none;
+}
+.tuto-coach[hidden] { display: none; }
+.tuto-coach button { pointer-events: auto; }
+
+@keyframes tutoIn {
+  from { transform: translateY(26px) scale(0.97); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Rejoué à chaque changement d'étape pour marquer la progression. */
+.tuto-coach.swap { animation: tutoSwap 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes tutoSwap {
+  0% { transform: translateX(-22px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.tuto-coach-bar {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 7px;
+}
+
+.tuto-step {
+  flex: none;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  background: var(--gold);
+  color: var(--text-dark);
+  padding: 3px 8px;
+  font-weight: 700;
+}
+
+.tuto-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  letter-spacing: 0.07em;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.tuto-skip {
+  margin-left: auto;
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--surface-3);
+  color: var(--muted);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  padding: 4px 8px;
+}
+.tuto-skip:hover { border-color: var(--danger); color: var(--danger); }
+
+.tuto-text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--text);
+  max-width: 92ch;
+}
+.tuto-text b { color: var(--gold); }
+
+.tuto-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 9px;
+  min-height: 30px;
+}
+
+.tuto-objective {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tuto-objective::before {
+  content: '○';
+  color: var(--gold);
+  font-size: 0.9rem;
+}
+.tuto-objective.met { color: var(--ok); }
+.tuto-objective.met::before { content: '✓'; color: var(--ok); }
+
+.tuto-next { margin-left: auto; flex: none; }
+.tuto-next[hidden] { display: none; }
+
+/* --- Halo sur un élément d'interface à cliquer --- */
+.tuto-target {
+  position: relative;
+  z-index: 8;
+  animation: tutoPulse 1.15s ease-in-out infinite;
+}
+
+@keyframes tutoPulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--gold), 4px 4px 0 var(--line); }
+  50% { box-shadow: 0 0 0 7px rgba(240, 210, 75, 0.22), 4px 4px 0 var(--line); }
+}
+
+/* Boutique : les tours hors leçon sont neutralisées visuellement. */
+.shop-item.locked {
+  opacity: 0.2;
+  pointer-events: none;
+  filter: grayscale(1);
+}
+
+.help-cta {
+  border: 2px solid var(--gold);
+  background: rgba(240, 210, 75, 0.07);
+  padding: 13px;
+}
+.help-cta h3 { color: var(--gold); }
+.help-cta .btn { margin-top: 9px; }
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 1180px) {

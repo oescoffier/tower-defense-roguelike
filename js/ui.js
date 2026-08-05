@@ -68,17 +68,27 @@ export function showScreen(id, opts = {}) {
 /** Entrée en cascade des panneaux de l'écran affiché. */
 export function animateScreenIn(id) {
   const el = document.getElementById(id);
-  const panels = Array.from(el.querySelectorAll('.panel, .hud-box, .stage, .branch-btn'));
-  if (!panels.length) return;
-  A.set(panels, { opacity: 0, translateY: 22 });
-  A({
-    targets: panels,
-    opacity: [0, 1],
-    translateY: [22, 0],
-    duration: 520,
-    delay: A.stagger(34),
-    easing: 'easeOutBack'
-  });
+  const panels = Array.from(el.querySelectorAll('.panel, .hud-box, .branch-btn'));
+  if (panels.length) {
+    A.set(panels, { opacity: 0, translateY: 22 });
+    A({
+      targets: panels,
+      opacity: [0, 1],
+      translateY: [22, 0],
+      duration: 520,
+      delay: A.stagger(34),
+      easing: 'easeOutBack'
+    });
+  }
+
+  // Le plateau ne fait QUE se révéler : le déplacer décalerait sa boîte
+  // pendant qu'il est déjà cliquable, et un clic viserait la mauvaise case.
+  // fitStage() est par ailleurs seul maître de son transform (scale).
+  const stage = el.querySelector('.stage');
+  if (stage) {
+    A.set(stage, { opacity: 0 });
+    A({ targets: stage, opacity: [0, 1], duration: 460, easing: 'easeOutQuad' });
+  }
 }
 
 // ============================================================
@@ -155,6 +165,12 @@ export function renderMenu(save, treeSize) {
   $('#tree-badge').textContent = save.materials;
   const cmdr = COMMANDERS[save.commander];
   $('#commander-badge').textContent = cmdr ? cmdr.name : 'AUCUN';
+  const tutoBadge = $('#tutorial-badge');
+  if (tutoBadge) {
+    tutoBadge.textContent = save.tutorialDone ? 'REVOIR' : 'NOUVEAU';
+    tutoBadge.style.background = save.tutorialDone ? 'var(--surface-3)' : 'var(--gold)';
+    tutoBadge.style.color = save.tutorialDone ? 'var(--muted)' : 'var(--text-dark)';
+  }
 
   const list = $('#menu-towers');
   list.innerHTML = TOWER_ORDER.map((id) => {
@@ -266,6 +282,8 @@ export function refreshShop(game) {
       el.classList.toggle('poor', game.gold < cost);
     }
     el.classList.toggle('on', game.placing === id);
+    // Entraînement : tout ce qui sort de la leçon en cours est neutralisé.
+    el.classList.toggle('locked', !!game.allowedTowers && !game.allowedTowers.has(id));
   });
 }
 
@@ -306,10 +324,17 @@ export function setWaveButton(game) {
   if (game.waveRunning) {
     btn.disabled = true;
     label.textContent = `VAGUE ${game.wave} EN COURS`;
-  } else {
-    btn.disabled = false;
-    label.textContent = `LANCER LA VAGUE ${game.wave + 1}`;
+    return;
   }
+  // En entraînement, la vague n'est armée que quand l'étape la réclame.
+  if (game.tutorial) {
+    const ready = game.tutorial.canStartWave();
+    btn.disabled = !ready;
+    label.textContent = ready ? 'LANCER LA VAGUE' : 'SUIS LA CONSIGNE';
+    return;
+  }
+  btn.disabled = false;
+  label.textContent = `LANCER LA VAGUE ${game.wave + 1}`;
 }
 
 export function renderWaveComp(waveData, summary) {

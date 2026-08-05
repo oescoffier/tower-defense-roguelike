@@ -14,6 +14,7 @@ import { Renderer } from './render.js';
 import { buildWave, waveSummary, WaveRunner } from './waves.js';
 import { chainReaction, teslaStorm } from './combat.js';
 import { buildTree, computeMods, branchSummary, TreeView } from './skilltree.js';
+import { Tutorial, TUTORIAL_MAP, TUTORIAL_REWARD } from './tutorial.js';
 import { Save } from './save.js';
 import * as UI from './ui.js';
 import { A, $, $$ } from './ui.js';
@@ -65,7 +66,18 @@ const game = {
 
   chainBlastMult: 0.6,
 
+  // --- Tutoriel ---
+  tutorial: null,          // instance Tutorial quand le mode entraînement est actif
+  allowedTowers: null,     // Set des tours autorisées (null = toutes)
+  tutorialCell: null,      // case mise en avant sur la grille
+  tutorialRequireCell: false,
+
   spend(n) { this.gold = Math.max(0, this.gold - n); },
+
+  /** Notifie le tutoriel d'un fait de jeu. Sans effet en partie normale. */
+  emit(event, payload) {
+    if (this.tutorial) this.tutorial.handle(event, payload);
+  },
 
   // --------------------------------------------------------
   onEnemyKilled(e, opts) {
@@ -144,21 +156,28 @@ let activeBranch = -1;
 //  Cycle de partie
 // ============================================================
 
-function startRun() {
-  game.mods = computeMods(tree, save.unlocked);
+function startRun(opts = {}) {
+  const tuto = !!opts.tutorial;
+
+  // L'entraînement se joue sur une base neutre : aucun bonus d'arbre ni
+  // commandant, pour que ce qu'on montre corresponde exactement au texte.
+  game.mods = tuto ? Object.create(null) : computeMods(tree, save.unlocked);
   game.mods.__survivorBonus = 0;
 
-  game.grid = new Grid((Math.random() * 0xffffff) | 0);
+  game.grid = tuto
+    ? new Grid(0, TUTORIAL_MAP)
+    : new Grid((Math.random() * 0xffffff) | 0);
   game.towers = [];
   game.enemies = [];
   game.projectiles = [];
   game.vfx.clear();
   // Le commandant choisi dans le menu est figé pour toute la durée de la partie.
-  game.commanderChoice = save.commander;
+  game.commanderChoice = tuto ? null : save.commander;
 
-  game.maxLives = ECONOMY.startLives + Math.floor(game.mods['player.lives'] || 0);
+  game.maxLives = tuto ? 20 : ECONOMY.startLives + Math.floor(game.mods['player.lives'] || 0);
   game.lives = game.maxLives;
-  game.gold = ECONOMY.startGold + Math.round(game.mods['player.startGold'] || 0);
+  // En entraînement, chaque étape verse exactement ce qu'elle demande.
+  game.gold = tuto ? 0 : ECONOMY.startGold + Math.round(game.mods['player.startGold'] || 0);
   game.wave = 0;
   game.kills = 0;
   game.towersBuilt = 0;
@@ -174,31 +193,44 @@ function startRun() {
   game.stormTimer = 0;
   game.freeTypes = new Set();
   game.chainBlastMult = 0.6 + (game.mods['tesla.chainBlast'] || 0);
-  game.prepLeft = WAVE.prepTime;
+  // Pas de compte à rebours en entraînement : le joueur avance à son rythme.
+  game.prepLeft = tuto ? 0 : WAVE.prepTime;
+
+  // Réinitialise l'état de tutoriel avant de (ré)armer le mode.
+  game.tutorial = null;
+  game.allowedTowers = null;
+  game.tutorialCell = null;
+  game.tutorialRequireCell = false;
 
   UI.resetHudCache();
   UI.buildShop(game, pickTower);
+
+  if (tuto) startTutorial();
+
   UI.refreshShop(game);
   UI.refreshHud(game);
   UI.renderTowerPanel(game, null);
   prepareNextWave();
   UI.setWaveButton(game);
   $('#pause-overlay').hidden = true;
-  $('#prep-badge').hidden = false;
+  $('#prep-badge').hidden = tuto;
+  $('#tuto-coach').hidden = !tuto;
   $$('.speed-btns button').forEach((b) => b.classList.toggle('on', +b.dataset.speed === 1));
 
   game.state = STATE.GAME;
 }
 
 function prepareNextWave() {
-  game.waveData = buildWave(game.wave + 1);
+  game.waveData = game.tutorial ? game.tutorial.waveFor() : buildWave(game.wave + 1);
   UI.renderWaveComp(game.waveData, waveSummary(game.waveData));
 }
 
 function startWave() {
   if (game.waveRunning) return;
+  // En entraînement, la vague n'est disponible que quand l'étape l'attend.
+  if (game.tutorial && !game.tutorial.canStartWave()) return;
   game.wave++;
-  game.waveData = buildWave(game.wave);
+  game.waveData = game.tutorial ? game.tutorial.waveFor() : buildWave(game.wave);
   game.waveRunner = new WaveRunner(game.waveData);
   game.waveRunning = true;
   game.prepLeft = 0;
@@ -230,6 +262,14 @@ function completeWave() {
   game.waveRunning = false;
   game.waveRunner = null;
 
+  // L'entraînement gère lui-même sa progression : ni prime, ni vague suivante.
+  if (game.tutorial) {
+    UI.setWaveButton(game);
+    UI.refreshShop(game);
+    game.emit('wave-cleared', { wave: game.wave });
+    return;
+  }
+
   const bonusMult = 1 + (game.mods['player.waveBonus'] || 0);
   const bonus = Math.round((ECONOMY.waveBonusBase + ECONOMY.waveBonusPerWave * game.wave) * bonusMult);
   const interest = Math.round(game.gold * (game.mods['player.interest'] || 0));
@@ -257,6 +297,10 @@ function completeWave() {
 
 function endRun() {
   if (game.state !== STATE.GAME) return;
+
+  // L'entraînement ne compte pas comme une partie : pas de score, pas de stats.
+  if (game.tutorial) { quitTutorial(); return; }
+
   game.state = STATE.OVER;
   game.waveRunning = false;
 
@@ -403,6 +447,8 @@ function frame(now) {
 // ============================================================
 
 function pickTower(id) {
+  // Pendant l'entraînement, seules les tours de l'étape sont sélectionnables.
+  if (game.allowedTowers && !game.allowedTowers.has(id)) return;
   if (game.placing === id) { game.placing = null; }
   else {
     game.placing = id;
@@ -471,8 +517,19 @@ function checkCommanderRankUp() {
   UI.refreshHud(game);
 }
 
+/** Case imposée par l'étape de tutoriel en cours (null si libre). */
+function tutorialCellBlocks(x, y) {
+  if (!game.tutorialRequireCell || !game.tutorialCell) return false;
+  return game.tutorialCell.x !== x || game.tutorialCell.y !== y;
+}
+
 function updatePlaceValidity() {
   if (!game.placing || !game.hover) { game.placeValid = false; return; }
+  if (tutorialCellBlocks(game.hover.x, game.hover.y)) {
+    game.placeValid = false;
+    game.placeReason = 'CASE INDIQUÉE';
+    return;
+  }
   const cost = towerCost(game.placing, game.mods);
   const free = !COMMANDERS[game.placing] && game.mods['player.war'] && !game.freeTypes.has(game.placing);
   if (COMMANDERS[game.placing] && hasCommanderDeployed()) {
@@ -489,6 +546,13 @@ function tryPlace() {
   if (!game.placing || !game.hover) return;
   const { x, y } = game.hover;
   const id = game.placing;
+
+  // Le scénario impose la case : on refuse ailleurs sans consommer de crédits.
+  if (tutorialCellBlocks(x, y)) {
+    refusePlacement(x, y, 'POSE-LA SUR LA CASE INDIQUÉE');
+    return;
+  }
+
   const cost = towerCost(id, game.mods);
   const free = !COMMANDERS[id] && game.mods['player.war'] && !game.freeTypes.has(id);
 
@@ -532,6 +596,9 @@ function tryPlace() {
   UI.refreshShop(game);
   UI.refreshHud(game);
   updatePlaceValidity();
+
+  game.emit('tower-placed', { tower, archetype: tower.archetype || id, id });
+  game.emit('path-changed', {});
 }
 
 function refusePlacement(x, y, reason) {
@@ -540,6 +607,7 @@ function refusePlacement(x, y, reason) {
   game.vfx.addShake(1.5);
   const stage = $('#stage');
   A({ targets: stage, translateX: [-7, 7, -4, 4, 0], duration: 240, easing: 'easeOutQuad' });
+  game.emit('place-refused', { x, y, reason });
 }
 
 function selectTowerAt(x, y) {
@@ -622,6 +690,7 @@ function bindGameInputs() {
     if (game.selected && game.selected.upgrade(game)) {
       UI.renderTowerPanel(game, game.selected);
       UI.refreshHud(game);
+      game.emit('tower-upgraded', { tower: game.selected });
     }
   });
 
@@ -667,6 +736,147 @@ function togglePause() {
   if (game.paused) {
     A({ targets: '.pause-text', scale: [0.6, 1], opacity: [0, 1], duration: 420, easing: 'easeOutElastic' });
   }
+}
+
+// ============================================================
+//  Tutoriel — pilotage du panneau de coaching
+//
+//  Le scénario n'affiche jamais une explication avant l'action :
+//  l'étape pose une consigne courte, le joueur agit, et c'est
+//  seulement une fois l'objectif atteint que le popup nomme la
+//  mécanique qu'il vient de voir à l'écran.
+// ============================================================
+
+/** Met en évidence l'élément d'interface à cliquer (bouton de vague, etc.). */
+function setTutorialTarget(selector) {
+  $$('.tuto-target').forEach((el) => el.classList.remove('tuto-target'));
+  if (!selector) return;
+  const el = $(selector);
+  if (!el) return;
+  el.classList.add('tuto-target');
+  // Le panneau latéral défile : un halo sur un bouton hors champ ne sert
+  // à rien, on le ramène dans la vue.
+  if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function renderTutorialStep(step, tuto) {
+  const coach = $('#tuto-coach');
+  coach.hidden = false;
+  $('#tuto-step').textContent = `${tuto.stepNumber}/${tuto.total}`;
+  $('#tuto-title').textContent = step.title;
+  $('#tuto-text').innerHTML = step.text;
+
+  const obj = $('#tuto-objective');
+  if (step.objective) {
+    // Sur les étapes en deux temps, l'objectif se met à jour en cours de route.
+    const half = step.goal.type === 'placeThenWave' && tuto.placedThisStep;
+    obj.textContent = half ? 'Lancer la vague' : step.objective;
+    obj.classList.remove('met');
+    obj.hidden = false;
+  } else {
+    obj.hidden = true;
+  }
+
+  const next = $('#tuto-next');
+  next.hidden = step.goal.type !== 'info';
+  if (step.goal.type === 'info') next.textContent = 'TERMINER ✓';
+
+  setTutorialTarget(tuto.canStartWave() ? '#btn-wave' : step.highlight);
+
+  coach.classList.remove('swap');
+  void coach.offsetWidth;
+  coach.classList.add('swap');
+
+  UI.refreshShop(game);
+  UI.setWaveButton(game);
+}
+
+/** Objectif atteint : on félicite, puis on livre l'explication. */
+function onTutorialComplete(step, tuto) {
+  const obj = $('#tuto-objective');
+  obj.textContent = 'Objectif atteint';
+  obj.classList.add('met');
+  obj.hidden = false;
+  setTutorialTarget(null);
+  UI.refreshShop(game);
+  UI.setWaveButton(game);
+
+  game.vfx.addFlash(0.1, PALETTE.gold);
+
+  if (!step.after) { tuto.next(); return; }
+
+  // Petit temps mort pour laisser l'action se finir à l'écran.
+  setTimeout(() => {
+    if (!game.tutorial || game.tutorial !== tuto || tuto.finished) return;
+    $('#tuto-title').textContent = step.after.title;
+    $('#tuto-text').innerHTML = step.after.text;
+    const next = $('#tuto-next');
+    next.textContent = 'CONTINUER ▶';
+    next.hidden = false;
+    const coach = $('#tuto-coach');
+    coach.classList.remove('swap');
+    void coach.offsetWidth;
+    coach.classList.add('swap');
+    A({ targets: coach, scale: [0.98, 1], duration: 320, easing: 'easeOutBack' });
+  }, 700);
+}
+
+function startTutorial() {
+  game.tutorial = new Tutorial(game, {
+    onStep: renderTutorialStep,
+    onComplete: onTutorialComplete,
+    onFinish: finishTutorial,
+    onAbort: () => { $('#tuto-coach').hidden = true; setTutorialTarget(null); }
+  });
+  game.tutorial.start();
+}
+
+function finishTutorial() {
+  $('#tuto-coach').hidden = true;
+  setTutorialTarget(null);
+  const first = save.markTutorialDone();
+  if (first) save.addMaterials(TUTORIAL_REWARD);
+
+  game.tutorial = null;
+  game.state = STATE.MENU;
+  UI.renderMenu(save, tree.nodes.length - 1);
+  UI.showScreen('screen-menu').then(() => {
+    if (first) {
+      UI.toast(
+        `<b>ENTRAÎNEMENT TERMINÉ</b><br>+${TUTORIAL_REWARD} matériaux — de quoi ouvrir tes premiers nœuds`,
+        'good', 5000
+      );
+    }
+  });
+}
+
+/** Abandon volontaire du tutoriel (bouton QUITTER ou ABANDONNER). */
+function quitTutorial() {
+  if (game.tutorial) game.tutorial.abort();
+  game.tutorial = null;
+  game.state = STATE.MENU;
+  UI.renderMenu(save, tree.nodes.length - 1);
+  UI.showScreen('screen-menu');
+}
+
+function bindTutorialInputs() {
+  $('#btn-tutorial').addEventListener('click', launchTutorial);
+  $('#help-start-tutorial').addEventListener('click', () => {
+    closeHelp();
+    launchTutorial();
+  });
+  $('#tuto-next').addEventListener('click', () => {
+    if (game.tutorial) game.tutorial.advance();
+  });
+  $('#tuto-skip').addEventListener('click', () => {
+    if (confirm('Quitter l\'entraînement ? Tu pourras le relancer depuis le menu.')) quitTutorial();
+  });
+}
+
+function launchTutorial() {
+  UI.showScreen('screen-game', {
+    onSwap: () => { startRun({ tutorial: true }); requestAnimationFrame(fitStage); }
+  });
 }
 
 // ============================================================
@@ -876,6 +1086,7 @@ function init() {
   bindTreeInputs();
   bindCommanderInputs();
   bindHelpModal();
+  bindTutorialInputs();
 
   window.addEventListener('resize', () => {
     fitStage();
@@ -895,7 +1106,9 @@ function init() {
   window.TD = {
     game, save, tree,
     get treeView() { return treeView; },
-    tryPlace, buyNode, endRun, startWave, startRun, fitStage
+    get tutorial() { return game.tutorial; },
+    tryPlace, buyNode, endRun, startWave, startRun, fitStage,
+    launchTutorial, pickTower
   };
 
   console.log(

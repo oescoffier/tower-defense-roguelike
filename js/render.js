@@ -7,6 +7,7 @@
 import { GRID, CELL, PALETTE } from './config.js';
 import { drawEnemy } from './enemies.js';
 import { drawGhost } from './towers.js';
+import { drawTutorialCell } from './tutorial.js';
 
 const C = GRID.cell;
 const TAU = Math.PI * 2;
@@ -70,6 +71,9 @@ export class Renderer {
     this._drawAirPath(ctx, game, t);
 
     vfx.drawBelow(ctx);
+
+    // Case objectif du tutoriel, sous le fantôme de placement
+    if (game.tutorialCell) drawTutorialCell(ctx, game.tutorialCell, t);
 
     // Fantôme de placement sous les entités
     if (game.placing && game.hover) {
