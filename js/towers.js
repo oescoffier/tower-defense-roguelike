@@ -75,6 +75,10 @@ export class Tower {
     // Variante choisie au loadout pour cet archetype (null = version de base).
     this.variant = variantFor(this.archetype, game.loadout);
     this.variantFlags = (this.variant && this.variant.flags) || {};
+    // Bonus d'aura de commandant (voir applyCommanderTowerAura dans main.js) :
+    // recalculé à chaque pose/vente/rang, jamais lu depuis game.mods — c'est
+    // ce qui le rend impossible à obtenir via l'arbre de compétences.
+    this.auraMult = { damage: 1, rate: 1, range: 1 };
     this.recompute(game.mods);
   }
 
@@ -172,6 +176,11 @@ export class Tower {
       if (s.bounces !== undefined) s.bounces = Math.max(0, Math.round(s.bounces));
       if (s.bounceFalloff !== undefined) s.bounceFalloff = Math.min(0.98, s.bounceFalloff);
     }
+
+    // --- Aura de commandant --- (voir this.auraMult ; jamais via game.mods)
+    s.damage *= this.auraMult.damage;
+    s.rate *= this.auraMult.rate;
+    s.range *= this.auraMult.range;
 
     this.stats = s;
     this.rangePx = s.range * C;

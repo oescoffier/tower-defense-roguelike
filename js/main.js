@@ -12,7 +12,7 @@ import { Tower, towerCost } from './towers.js';
 import { Vfx } from './vfx.js';
 import { Renderer } from './render.js';
 import { buildWave, waveSummary, WaveRunner } from './waves.js';
-import { chainReaction, teslaStorm } from './combat.js';
+import { chainReaction, teslaStorm, explode, hit, enemiesInRange, canHit } from './combat.js';
 import { buildTree, computeMods, branchSummary, TreeView } from './skilltree.js';
 import { Tutorial, TUTORIAL_MAP, TUTORIAL_REWARD } from './tutorial.js';
 import { Save } from './save.js';
@@ -133,6 +133,7 @@ const game = {
 
     if (e.boss) UI.toast(`<b>${e.name} ABATTU</b><br>+${gain} crédits`, 'good', 3200);
 
+    applyCommanderOnKill(e, opts, this);
     checkCommanderRankUp();
   },
 
@@ -442,6 +443,10 @@ function step(dt) {
     if (game.stormTimer <= 0) { game.stormTimer = 6; teslaStorm(game); }
   }
 
+  // Aptitudes de commandant : aura de zone continue + pulsation périodique
+  applyCommanderFieldEffects(dt, game);
+  updateCommanderPulse(dt, game);
+
   // Ennemis
   for (const e of game.enemies) e.update(dt, game);
   for (let i = game.enemies.length - 1; i >= 0; i--) {
@@ -552,44 +557,204 @@ function hasCommanderDeployed() {
   return game.towers.some((t) => t.isCommander);
 }
 
+function deployedCommander() {
+  return game.towers.find((t) => t.isCommander) || null;
+}
+
+// ============================================================
+//  Aptitudes de commandant — mécaniques propres, introuvables dans
+//  l'arbre de compétences (auras spatiales, pulsations, déclencheurs
+//  sur élimination). Voir COMMANDERS[*].ability dans config.js.
+// ============================================================
+
 /**
- * Applique (sign=1) ou retire (sign=-1) la capacité de commandement d'un
- * commandant sur toutes les tours de la partie, en réutilisant les mêmes
- * clés de modificateur que les notables/clés de voûte de l'arbre. La
- * puissance de la capacité suit le rang courant du commandant (rankMult).
+ * Aura passive (type 'aura') : buff continu aux tours à portée d'un
+ * commandant, QUEL QUE SOIT LEUR ARCHÉTYPE — une zone spatiale autour
+ * d'une tour posée, ce que l'arbre ne fait jamais. N'a besoin d'être
+ * recalculée que quand la topologie change (pose/vente/rang), jamais
+ * chaque frame : les tours ne bougent pas.
  */
-function applyCommanderGrants(tower, sign) {
-  const mult = tower.rankMult || 1;
-  for (const [key, value] of Object.entries(tower.def.grants || {})) {
-    game.mods[key] = (game.mods[key] || 0) + value * mult * sign;
+function applyCommanderTowerAura(game) {
+  const cmdr = deployedCommander();
+  const ab = cmdr && cmdr.def.ability;
+  const active = ab && ab.type === 'aura' && ab.target === 'towers';
+
+  for (const t of game.towers) {
+    t.auraMult.damage = 1; t.auraMult.rate = 1; t.auraMult.range = 1;
+    if (!active || t === cmdr) continue;
+    const d = Math.hypot(t.px - cmdr.px, t.py - cmdr.py);
+    if (d <= ab.radius * GRID.cell) {
+      t.auraMult[ab.stat] = 1 + ab.value * (cmdr.rankMult || 1);
+    }
   }
-  game.chainBlastMult = 0.6 + (game.mods['tesla.chainBlast'] || 0);
   for (const t of game.towers) t.recompute(game.mods);
+}
+
+/**
+ * Aura de zone (type 'auraDebuff') : effet continu sur les ennemis au sol
+ * à portée d'un commandant. Contrairement à l'aura sur les tours, la
+ * cible bouge : on la réévalue chaque frame, tant qu'une vague tourne.
+ */
+function applyCommanderFieldEffects(dt, game) {
+  const cmdr = deployedCommander();
+  const ab = cmdr && cmdr.def.ability;
+  if (!ab || ab.type !== 'auraDebuff' || !game.waveRunning) return;
+
+  const r2 = (ab.radius * GRID.cell) ** 2;
+  const mult = cmdr.rankMult || 1;
+  for (const e of game.enemies) {
+    if (e.dead || e.air) continue;
+    const dx = e.x - cmdr.px, dy = e.y - cmdr.py;
+    if (dx * dx + dy * dy > r2) continue;
+    if (ab.kind === 'slow') e.applySlow(ab.value, 0.4, game);
+    else if (ab.kind === 'burn') e.applyBurn(ab.value * mult, 0.4, 6, game, 0);
+  }
+}
+
+/**
+ * Pulsation périodique (type 'pulse') : se déclenche toutes les
+ * `interval` secondes tant qu'une vague tourne. Le minuteur vit sur la
+ * tour commandant elle-même (`pulseTimer`).
+ */
+function updateCommanderPulse(dt, game) {
+  const cmdr = deployedCommander();
+  const ab = cmdr && cmdr.def.ability;
+  if (!ab || ab.type !== 'pulse' || !game.waveRunning) return;
+
+  if (cmdr.pulseTimer === undefined) cmdr.pulseTimer = ab.interval;
+  cmdr.pulseTimer -= dt;
+  if (cmdr.pulseTimer > 0) return;
+  cmdr.pulseTimer = ab.interval;
+  fireCommanderPulse(cmdr, ab, game);
+}
+
+function fireCommanderPulse(cmdr, ab, game) {
+  const mult = cmdr.rankMult || 1;
+
+  switch (ab.kind) {
+    case 'nova': {
+      let pos = { x: cmdr.px, y: cmdr.py };
+      if (!ab.selfCentered) {
+        const maxD2 = ab.rangeLimited ? cmdr.rangePx * cmdr.rangePx : Infinity;
+        let best = null, bestHp = -1;
+        for (const e of game.enemies) {
+          if (e.dead || !canHit(e, ab.targetMask)) continue;
+          const dx = e.x - cmdr.px, dy = e.y - cmdr.py;
+          if (dx * dx + dy * dy > maxD2) continue;
+          const hp = e.hp + e.shield;
+          if (hp > bestHp) { bestHp = hp; best = e; }
+        }
+        if (!best) return; // rien à frapper : pas de coup dans le vide
+        pos = { x: best.x, y: best.y };
+      }
+      explode(game, pos.x, pos.y, ab.radius * GRID.cell, ab.damage * mult, {
+        mask: ab.targetMask, color: cmdr.def.accent, power: 1.2, source: cmdr, type: 'commander'
+      });
+      break;
+    }
+    case 'execute': {
+      let worst = null, worstRatio = ab.threshold;
+      for (const e of game.enemies) {
+        if (e.dead || e.boss) continue;
+        if (e.hpRatio < worstRatio) { worstRatio = e.hpRatio; worst = e; }
+      }
+      if (!worst) return;
+      game.vfx.floatText(worst.x, worst.y - worst.radius - 6, 'EXÉCUTÉ', cmdr.def.accent, 14, 0.9);
+      hit(cmdr, worst, game, worst.hp + worst.shield + 9999, { ignoreArmor: true, type: 'commander' });
+      break;
+    }
+    case 'overcharge': {
+      let best = null, bestHp = -1;
+      for (const e of game.enemies) {
+        if (e.dead) continue;
+        const hp = e.hp + e.shield;
+        if (hp > bestHp) { bestHp = hp; best = e; }
+      }
+      if (!best) return;
+      best.commanderMarkUntil = game.time + ab.dur;
+      best.commanderMarkBonus = ab.value;
+      game.vfx.ring(best.x, best.y, 4, best.radius * 2.4, 0.5, cmdr.def.accent, 4);
+      game.vfx.floatText(best.x, best.y - best.radius - 6, 'MARQUÉ', cmdr.def.accent, 14, ab.dur * 0.6);
+      break;
+    }
+    case 'freeze': {
+      const r2 = (ab.radius * GRID.cell) ** 2;
+      for (const e of game.enemies) {
+        if (e.dead) continue;
+        const dx = e.x - cmdr.px, dy = e.y - cmdr.py;
+        if (dx * dx + dy * dy <= r2) e.stunUntil = Math.max(e.stunUntil, game.time + ab.dur);
+      }
+      game.vfx.ring(cmdr.px, cmdr.py, 4, ab.radius * GRID.cell, 0.45, cmdr.def.accent, 5);
+      game.vfx.addShake(1.5);
+      break;
+    }
+    case 'emp': {
+      let hitAny = false;
+      for (const e of game.enemies) {
+        if (e.dead || !e.maxShield || e.shield <= 0) continue;
+        e.shield = 0;
+        hitAny = true;
+      }
+      if (hitAny) game.vfx.addFlash(0.25, cmdr.def.accent);
+      break;
+    }
+  }
+}
+
+/**
+ * Déclencheur sur élimination (type 'onKill') : se déclenche à CHAQUE
+ * élimination, par n'importe quelle tour, tant que le commandant est
+ * déployé. Le garde-fou sur opts.type évite qu'une étincelle déclenchée
+ * par ce système ne se redéclenche elle-même en cascade infinie.
+ */
+function applyCommanderOnKill(e, opts, game) {
+  const cmdr = deployedCommander();
+  const ab = cmdr && cmdr.def.ability;
+  if (!ab || ab.type !== 'onKill') return;
+  if (opts && opts.type === 'commander-spark') return;
+
+  if (ab.kind === 'goldBonus') {
+    game.gold += ab.value;
+    game.vfx.floatText(e.x, e.y - e.radius - 6, `+${ab.value}`, cmdr.def.accent, 12, 0.6);
+  } else if (ab.kind === 'healChance') {
+    if (Math.random() < ab.chance && game.lives < game.maxLives) {
+      game.lives++;
+      game.vfx.floatText(cmdr.px, cmdr.py - 24, '+1', PALETTE.ok, 15, 0.9);
+      UI.refreshHud(game);
+    }
+  } else if (ab.kind === 'chainSpark') {
+    if (Math.random() >= ab.chance) return;
+    const near = enemiesInRange(game, e.x, e.y, ab.radius * GRID.cell, TARGET.BOTH).filter((o) => !o.dead && o !== e);
+    if (!near.length) return;
+    const target = near[Math.floor(Math.random() * near.length)];
+    game.vfx.lightning(e.x, e.y, target.x, target.y, cmdr.def.accent, 0.16, 8);
+    hit(cmdr, target, game, ab.damage * (cmdr.rankMult || 1), { type: 'commander-spark' });
+  }
 }
 
 /**
  * Un commandant monte en rang (gros palier, jusqu'à 3) à mesure que
  * N'IMPORTE QUELLE tour élimine des ennemis pendant qu'il est sur le
- * terrain. Chaque rang le rend plus fort ET renforce sa capacité de
- * commandement d'autant (même multiplicateur pour les deux).
+ * terrain. Chaque rang le rend plus fort ET renforce son aptitude
+ * d'autant (aura recalculée ; pulsation/déclencheur lisent rankMult
+ * directement au moment où ils se déclenchent).
  */
 function checkCommanderRankUp() {
-  const cmdr = game.towers.find((t) => t.isCommander);
+  const cmdr = deployedCommander();
   if (!cmdr || cmdr.level >= COMMANDER_RANK_KILLS.length) return;
   const earned = game.kills - cmdr.killsAtPlacement;
   if (earned < COMMANDER_RANK_KILLS[cmdr.level]) return;
 
-  applyCommanderGrants(cmdr, -1); // retire la capacité à l'ancienne puissance
   cmdr.level++;
   cmdr.rankMult = 1 + cmdr.level * 0.5;
   cmdr.recompute(game.mods);
-  applyCommanderGrants(cmdr, 1); // la réapplique, plus forte
+  applyCommanderTowerAura(game);
 
   cmdr.placeAnim = 0;
   game.vfx.towerPlaced(cmdr.px, cmdr.py, PALETTE.gold);
   game.vfx.floatText(cmdr.px, cmdr.py - 32, `RANG ${cmdr.level}`, PALETTE.gold, 20, 1.4);
   UI.toast(
-    `<b>${cmdr.def.name} MONTE EN RANG</b><br>Rang ${cmdr.level}/${COMMANDER_RANK_KILLS.length} — lui et sa capacité sont renforcés`,
+    `<b>${cmdr.def.name} MONTE EN RANG</b><br>Rang ${cmdr.level}/${COMMANDER_RANK_KILLS.length} — lui et son aptitude sont renforcés`,
     'good', 3400
   );
   UI.refreshHud(game);
@@ -666,9 +831,11 @@ function tryPlace() {
   if (tower.isCommander) {
     tower.killsAtPlacement = game.kills;
     tower.rankMult = 1;
-    applyCommanderGrants(tower, 1);
     UI.toast(`<b>COMMANDANT DÉPLOYÉ</b><br>${tower.def.name} prend le terrain`, 'good', 3200);
   }
+  // Une nouvelle tour (commandant ou non) peut entrer/sortir de l'aura d'un
+  // commandant déjà posé : on recalcule à chaque pose, pas seulement la sienne.
+  applyCommanderTowerAura(game);
 
   game.vfx.towerPlaced(tower.px, tower.py, tower.def.accent);
   UI.refreshShop(game);
@@ -698,12 +865,14 @@ function selectTowerAt(x, y) {
 function sellSelected() {
   const t = game.selected;
   if (!t) return;
-  if (t.isCommander) applyCommanderGrants(t, -1);
   game.gold += t.sellValue(game.mods);
   game.vfx.towerSold(t.px, t.py);
   game.grid.remove(t.gx, t.gy);
   game.towers.splice(game.towers.indexOf(t), 1);
   for (const e of game.enemies) e.repath();
+  // Vendre la tour (commandant ou non) peut changer qui est dans l'aura,
+  // ou faire disparaître le commandant lui-même : on recalcule dans tous les cas.
+  applyCommanderTowerAura(game);
   game.selected = null;
   UI.renderTowerPanel(game, null);
   UI.refreshShop(game);

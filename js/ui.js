@@ -454,7 +454,7 @@ export function renderTowerPanel(game, tower) {
 
   const cmdrDesc = $('#tp-cmdr-desc');
   cmdrDesc.hidden = !tower.isCommander;
-  if (tower.isCommander) cmdrDesc.textContent = 'CAPACITÉ DE COMMANDEMENT — ' + tower.def.desc;
+  if (tower.isCommander) cmdrDesc.textContent = 'APTITUDE UNIQUE — ' + tower.def.desc;
 
   $('#tp-target-row').hidden = tower.id === 'sandbag';
   $('#tp-priority').textContent = {

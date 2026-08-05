@@ -210,6 +210,12 @@ export class Enemy {
     if (this.dead) return 0;
     let dmg = amount;
 
+    // Marque de commandant (BOURREAU) : cible désignée, dégâts amplifiés
+    // de la part de TOUTES les tours tant que la marque dure.
+    if (game && this.commanderMarkUntil && game.time < this.commanderMarkUntil) {
+      dmg *= 1 + this.commanderMarkBonus;
+    }
+
     if (!opts.ignoreArmor && this.armor > 0 && opts.type !== 'burn') {
       const pen = opts.armorPen || 0;
       const eff = Math.max(0, this.armor - pen);
