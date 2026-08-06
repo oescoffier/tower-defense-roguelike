@@ -13,6 +13,9 @@ import { Rng, hashStr } from './rng.js';
 
 const TAU = Math.PI * 2;
 
+/** Types de noeuds traites comme des reperes visuels de l'arbre. */
+const MAJOR = new Set(['keystone', 'variant']);
+
 // ============================================================
 //  Génération
 // ============================================================
@@ -38,10 +41,26 @@ function ringCounts() {
 
 const KEYSTONE_RINGS = [8, 14, 20];
 
+/**
+ * Valeur effective d'un noeud mineur a l'anneau `r`.
+ * Deux garanties :
+ *   - les stats marquees `int` restent entieres (une vie, de l'or) ;
+ *   - aucune valeur ne peut s'arrondir a zero a l'affichage, sinon le
+ *     joueur paie un noeud qui annonce « +0 ».
+ */
+function minorValue(stat, r) {
+  const raw = stat.v * (1 + r * 0.11);
+  if (stat.int) return Math.max(1, Math.round(Math.abs(raw))) * Math.sign(stat.v);
+  // Plus petit pas encore visible une fois formate (0.1 en %, 0.1 en plat).
+  const step = stat.pct ? 0.001 : 0.1;
+  const sign = Math.sign(raw) || 1;
+  return Math.abs(raw) < step ? step * sign : raw;
+}
+
 function fmtValue(stat, value) {
   const v = stat.pct ? (value * 100) : value;
   const rounded = Math.abs(v) >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
-  return stat.fmt.replace('{v}', (rounded > 0 && stat.flat ? '' : '') + rounded);
+  return stat.fmt.replace('{v}', rounded);
 }
 
 export function buildTree() {
@@ -126,8 +145,7 @@ export function buildTree() {
           cost = Math.round((TREE.costBase + TREE.costPerRing * r) * TREE.notableCostMult);
         } else {
           const stat = rng.weighted(stats);
-          const scale = 1 + r * 0.11;
-          const value = stat.v * scale;
+          const value = minorValue(stat, r);
           type = 'minor';
           name = null;
           desc = fmtValue(stat, value);
@@ -432,18 +450,24 @@ export class TreeView {
       const ua = this.isUnlocked(e.a), ub = this.isUnlocked(e.b);
       const both = ua && ub;
       const half = ua || ub;
+      // Une arete qui aboutit a un noeud majeur est tracee plus epaisse :
+      // l'oeil remonte naturellement les branches vers les gros lots.
+      const major = MAJOR.has(e.a.type) || MAJOR.has(e.b.type);
+      const boost = major ? 2.1 : 1;
       if (both) {
         ctx.strokeStyle = e.a.hub ? e.b.color : e.a.color;
         ctx.globalAlpha = 0.85;
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 3.5 * boost;
       } else if (half) {
         ctx.strokeStyle = PALETTE.text;
         ctx.globalAlpha = 0.6;
-        ctx.lineWidth = 2.2;
+        ctx.lineWidth = 2.2 * boost;
       } else {
+        // Une branche qui mene a un noeud majeur reste plus visible meme
+        // verrouillee : on doit deviner ou mene chaque embranchement.
         ctx.strokeStyle = e.a.hub ? e.b.color : e.a.color;
-        ctx.globalAlpha = 0.28;
-        ctx.lineWidth = 1.6;
+        ctx.globalAlpha = major ? 0.5 : 0.28;
+        ctx.lineWidth = 1.6 * boost;
       }
       ctx.beginPath();
       ctx.moveTo(e.a.x, e.a.y);
@@ -567,6 +591,42 @@ export class TreeView {
     ctx.save();
     ctx.translate(n.x, n.y);
 
+    // --- Aura des noeuds majeurs ---
+    // Presente meme verrouillee : ce sont les reperes de l'arbre, on doit
+    // les voir de loin pour choisir ou creuser.
+    if (MAJOR.has(n.type)) {
+      const beat = 0.5 + Math.sin(this.time * 2 + n.twinkle) * 0.5;
+      const spin = this.time * (n.type === 'variant' ? 0.5 : -0.35);
+
+      ctx.globalAlpha = (unlocked ? 0.3 : 0.16) + beat * 0.1;
+      ctx.fillStyle = n.color;
+      ctx.beginPath(); ctx.arc(0, 0, r * (2.4 + beat * 0.25), 0, TAU); ctx.fill();
+
+      // Rayons : signature visuelle reservee aux variantes.
+      if (n.type === 'variant') {
+        ctx.globalAlpha = (unlocked ? 0.55 : 0.28) + beat * 0.18;
+        ctx.strokeStyle = n.color;
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 8; i++) {
+          const a = spin + i / 8 * TAU;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * r * 1.5, Math.sin(a) * r * 1.5);
+          ctx.lineTo(Math.cos(a) * r * (2.3 + beat * 0.4), Math.sin(a) * r * (2.3 + beat * 0.4));
+          ctx.stroke();
+        }
+      }
+
+      // Anneau en pointilles tournants
+      ctx.globalAlpha = unlocked ? 0.75 : 0.4;
+      ctx.strokeStyle = n.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([9, 7]);
+      ctx.lineDashOffset = -this.time * 22;
+      ctx.beginPath(); ctx.arc(0, 0, r * 1.62, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+
     // Halo
     if (unlocked || affordable) {
       const pulse = affordable ? 0.5 + Math.sin(this.time * 4 + n.twinkle) * 0.3 : 0.32;
@@ -599,7 +659,9 @@ export class TreeView {
     const fill = unlocked ? n.color : (available ? PALETTE.surface3 : '#1c1c1c');
     const stroke = unlocked ? PALETTE.line
       : (affordable ? n.color : (available ? PALETTE.text : n.color));
-    ctx.globalAlpha = (unlocked || available) ? 1 : 0.62;
+    // Un mineur verrouille s'efface plus qu'un majeur : la densite de
+    // l'arbre ne doit pas noyer les noeuds qui comptent.
+    ctx.globalAlpha = (unlocked || available) ? 1 : (MAJOR.has(n.type) ? 0.85 : 0.42);
 
     if (n.type === 'variant') {
       // Octogone a double contour : la forme la plus « lourde » de l'arbre,
@@ -668,7 +730,7 @@ export class TreeView {
     // --- Symbole : dit d'un coup d'oeil ce que le noeud apporte ---
     // Sous 0.3 de zoom les glyphes deviennent illisibles : on les coupe
     // pour ne pas payer un fillText par noeud dans le vide.
-    if (z > 0.3 && n.icon) {
+    if (z > (MAJOR.has(n.type) ? 0.16 : 0.34) && n.icon) {
       ctx.globalAlpha = unlocked ? 1 : (available ? 0.9 : 0.5);
       ctx.fillStyle = unlocked ? PALETTE.bg : (affordable ? n.color : PALETTE.text);
       ctx.font = `${Math.round(r * 1.15)}px "Space Mono", monospace`;
@@ -690,8 +752,10 @@ export class TreeView {
 
     ctx.restore();
 
-    // Nom des notables/keystones quand on est assez zoomé
-    if (z > 0.55 && n.type !== 'minor' && n.name) {
+    // Les cles de voute et les variantes s'annoncent des 0.22 de zoom :
+    // ce sont elles qui doivent guider la navigation.
+    const nameZoom = MAJOR.has(n.type) ? 0.22 : 0.55;
+    if (z > nameZoom && n.type !== 'minor' && n.name) {
       ctx.save();
       ctx.font = `${n.type === 'variant' ? 23 : n.type === 'keystone' ? 20 : 15}px "Bebas Neue", sans-serif`;
       ctx.textAlign = 'center';

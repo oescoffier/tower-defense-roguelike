@@ -556,9 +556,11 @@ export const TREE = {
   ring0: 340,            // rayon du 1er anneau (px monde)
   ringStep: 124,         // écart entre anneaux
   hubRadius: 78,
-  nodeR: 13,
-  notableR: 19,
-  keystoneR: 27,
+  // Ecart de taille volontairement large : c'est le premier signal de
+  // hierarchie, celui qui fonctionne encore quand on est dezoome au max.
+  nodeR: 11,
+  notableR: 22,
+  keystoneR: 33,
   minorRate: 0.72,
   // Relevé : un arbre de +2000 nœuds n'a d'intérêt que si les effets
   // vraiment marquants y sont assez denses pour orienter un parcours.
@@ -568,7 +570,7 @@ export const TREE = {
   notableCostMult: 3,
   keystoneCostMult: 8,
   variantCostMult: 7,    // les variantes sont le gros lot d'une branche
-  variantR: 31
+  variantR: 40
 };
 
 export const BRANCHES = [
@@ -583,11 +585,13 @@ export const BRANCHES = [
 
 // Statistiques mineures disponibles par branche.
 // key = identifiant de modificateur, v = valeur par point, fmt = affichage
+// Plancher volontaire a 1.2% : en dessous, un noeud ne se ressent pas et
+// donne l'impression d'avoir depense pour rien.
 const towerStats = (t) => ([
-  { key: `${t}.damage`, v: 0.02, fmt: '+{v}% dégâts', pct: true, w: 26 },
-  { key: `${t}.rate`, v: 0.015, fmt: '+{v}% cadence', pct: true, w: 22 },
-  { key: `${t}.range`, v: 0.012, fmt: '+{v}% portée', pct: true, w: 16 },
-  { key: `${t}.cost`, v: -0.008, fmt: '{v}% coût de construction', pct: true, w: 10 }
+  { key: `${t}.damage`, v: 0.025, fmt: '+{v}% dégâts', pct: true, w: 26 },
+  { key: `${t}.rate`, v: 0.018, fmt: '+{v}% cadence', pct: true, w: 22 },
+  { key: `${t}.range`, v: 0.016, fmt: '+{v}% portée', pct: true, w: 16 },
+  { key: `${t}.cost`, v: -0.014, fmt: '{v}% coût de construction', pct: true, w: 10 }
 ]);
 
 export const BRANCH_STATS = {
@@ -595,11 +599,11 @@ export const BRANCH_STATS = {
     ...towerStats('mg'),
     { key: 'mg.spinMax', v: 0.02, fmt: '+{v}% régime maximum', pct: true, w: 12 },
     { key: 'mg.spinUp', v: -0.02, fmt: '{v}% temps de montée en régime', pct: true, w: 8 },
-    { key: 'mg.ricochet', v: 0.01, fmt: '+{v}% chance de ricochet', pct: true, w: 8 }
+    { key: 'mg.ricochet', v: 0.015, fmt: '+{v}% chance de ricochet', pct: true, w: 8 }
   ],
   sniper: [
     ...towerStats('sniper'),
-    { key: 'sniper.critChance', v: 0.008, fmt: '+{v}% chance critique', pct: true, w: 14 },
+    { key: 'sniper.critChance', v: 0.012, fmt: '+{v}% chance critique', pct: true, w: 14 },
     { key: 'sniper.critMult', v: 0.03, fmt: '+{v}% dégâts critiques', pct: true, w: 12 },
     { key: 'sniper.pierce', v: 0.04, fmt: '+{v}% perçage', pct: true, w: 8 }
   ],
@@ -612,14 +616,14 @@ export const BRANCH_STATS = {
   tesla: [
     ...towerStats('tesla'),
     { key: 'tesla.bounces', v: 0.035, fmt: '+{v}% rebonds', pct: true, w: 18 },
-    { key: 'tesla.bounceFalloff', v: 0.01, fmt: '+{v}% dégâts conservés par rebond', pct: true, w: 12 },
+    { key: 'tesla.bounceFalloff', v: 0.014, fmt: '+{v}% dégâts conservés par rebond', pct: true, w: 12 },
     { key: 'tesla.chainBlast', v: 0.025, fmt: '+{v}% explosion en chaîne', pct: true, w: 12 }
   ],
   flame: [
     ...towerStats('flame'),
     { key: 'flame.burnDps', v: 0.025, fmt: '+{v}% dégâts de brûlure', pct: true, w: 20 },
     { key: 'flame.burnDur', v: 0.02, fmt: '+{v}% durée de brûlure', pct: true, w: 14 },
-    { key: 'flame.cone', v: 0.012, fmt: '+{v}% angle du cône', pct: true, w: 10 }
+    { key: 'flame.cone', v: 0.016, fmt: '+{v}% angle du cône', pct: true, w: 10 }
   ],
   aa: [
     ...towerStats('aa'),
@@ -628,14 +632,17 @@ export const BRANCH_STATS = {
     { key: 'aa.missiles', v: 0.02, fmt: '+{v}% salve de missiles', pct: true, w: 8 }
   ],
   player: [
-    { key: 'player.lives', v: 0.04, fmt: '+{v} vie maximale', flat: true, w: 22 },
-    { key: 'player.startGold', v: 6, fmt: '+{v} or de départ', flat: true, w: 24 },
-    { key: 'player.goldPerKill', v: 0.02, fmt: '+{v}% or par élimination', pct: true, w: 20 },
-    { key: 'player.waveBonus', v: 0.025, fmt: '+{v}% bonus de fin de vague', pct: true, w: 16 },
-    { key: 'player.sellRatio', v: 0.006, fmt: '+{v}% remboursement à la vente', pct: true, w: 10 },
-    { key: 'player.materials', v: 0.012, fmt: '+{v}% matériaux récoltés', pct: true, w: 14 },
-    { key: 'player.interest', v: 0.004, fmt: '+{v}% intérêts par vague', pct: true, w: 10 },
-    { key: 'player.allDamage', v: 0.006, fmt: '+{v}% dégâts de toutes les tours', pct: true, w: 8 }
+    // `int` : une vie ne se compte pas en fractions. Le gain est entier et
+    // le noeud est rare (w faible), au lieu d'un +0.04 illisible qu'il
+    // fallait acheter 25 fois pour voir le compteur bouger.
+    { key: 'player.lives', v: 1, fmt: '+{v} vie maximale', flat: true, int: true, w: 7 },
+    { key: 'player.startGold', v: 8, fmt: '+{v} or de départ', flat: true, int: true, w: 24 },
+    { key: 'player.goldPerKill', v: 0.022, fmt: '+{v}% or par élimination', pct: true, w: 20 },
+    { key: 'player.waveBonus', v: 0.028, fmt: '+{v}% bonus de fin de vague', pct: true, w: 16 },
+    { key: 'player.sellRatio', v: 0.012, fmt: '+{v}% remboursement à la vente', pct: true, w: 10 },
+    { key: 'player.materials', v: 0.014, fmt: '+{v}% matériaux récoltés', pct: true, w: 14 },
+    { key: 'player.interest', v: 0.008, fmt: '+{v}% intérêts par vague', pct: true, w: 10 },
+    { key: 'player.allDamage', v: 0.01, fmt: '+{v}% dégâts de toutes les tours', pct: true, w: 8 }
   ]
 };
 
