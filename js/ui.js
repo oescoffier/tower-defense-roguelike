@@ -10,6 +10,7 @@ import {
   materialsForWave
 } from './config.js';
 import { towerCost } from './towers.js';
+import { RARITY, CARD_BY_ID } from './cards.js';
 import tween from './tween.js';
 
 /** anime.js si le CDN a répondu, sinon le moteur maison. */
@@ -679,4 +680,75 @@ export function renderLoadoutSummary(save) {
       ${t.short} <b style="color:${v ? v.accent : 'var(--muted)'}">${v ? v.short : 'STANDARD'}</b>
     </span>`;
   }).join('');
+}
+
+// ============================================================
+//  Draft de cartes
+// ============================================================
+
+/**
+ * Affiche les 3 cartes proposees. `onPick` recoit la carte choisie.
+ * L'overlay est plein ecran : le jeu doit deja etre fige par l'appelant.
+ */
+export function renderDraft(game, cards, onPick) {
+  const el = $('#draft');
+  const list = $('#draft-cards');
+
+  $('#draft-kicker').textContent = `VAGUE ${game.wave} REPOUSSÉE`;
+
+  list.innerHTML = cards.map((c) => `
+    <button class="card ${c.rarity}" data-card="${c.id}" style="--card:${c.color}">
+      <span class="card-top">
+        <span class="card-icon">${c.icon}</span>
+        <span>
+          <span class="card-rarity">${RARITY[c.rarity].name}</span>
+          <span class="card-name">${c.name}</span>
+        </span>
+      </span>
+      <span class="card-desc">${c.desc}</span>
+      <span class="card-take">PRENDRE</span>
+    </button>`).join('');
+
+  // Rappel de ce qui a deja ete pris dans la partie
+  const owned = $('#draft-owned');
+  const list2 = (game.cardsOwned || []).map((id) => CARD_BY_ID[id]).filter(Boolean);
+  owned.innerHTML = list2.length
+    ? `<span style="width:100%;margin-bottom:4px">DÉJÀ EN MAIN</span>` +
+      list2.map((c) => `<i style="border-left-color:${c.color}">${c.icon} ${c.name}</i>`).join('')
+    : '';
+
+  $$('#draft-cards .card').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const c = cards.find((x) => x.id === btn.dataset.card);
+      if (!c) return;
+      // Les deux autres cartes s'effacent, la choisie part en avant.
+      $$('#draft-cards .card').forEach((o) => {
+        if (o === btn) return;
+        A({ targets: o, opacity: [1, 0], translateY: [0, 26], scale: [1, 0.94], duration: 260, easing: 'easeInQuad' });
+      });
+      A({
+        targets: btn, scale: [1, 1.06, 1], duration: 340, easing: 'easeOutBack',
+        complete: () => onPick(c)
+      });
+    });
+  });
+
+  el.hidden = false;
+}
+
+export function hideDraft() {
+  const el = $('#draft');
+  A({
+    targets: '.draft-inner', opacity: [1, 0], translateY: [0, -18],
+    duration: 240, easing: 'easeInQuad',
+    complete: () => {
+      el.hidden = true;
+      A.set('.draft-inner', { opacity: 1, translateY: 0 });
+    }
+  });
+}
+
+/** Bandeau discret rappelant la carte qui vient d'etre prise. */
+export function announceCard(card) {
+  toast(`<b>${card.icon} ${card.name}</b><br>${card.desc}`, 'good', 4200);
 }

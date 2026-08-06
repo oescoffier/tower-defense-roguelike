@@ -15,6 +15,7 @@ import { buildWave, waveSummary, WaveRunner } from './waves.js';
 import { chainReaction, teslaStorm, explode, hit, enemiesInRange, canHit } from './combat.js';
 import { buildTree, computeMods, branchSummary, TreeView } from './skilltree.js';
 import { Tutorial, TUTORIAL_MAP, TUTORIAL_REWARD } from './tutorial.js';
+import { drawCards, applyCard, draftDue, CARD_BY_ID } from './cards.js';
 import { Save } from './save.js';
 import * as UI from './ui.js';
 import { A, $, $$ } from './ui.js';
@@ -54,6 +55,9 @@ const game = {
   waveData: null,
   autoWave: false,       // enchaînement automatique des vagues
   autoLeft: 0,           // répit restant avant la vague suivante
+  drafting: false,       // un choix de carte est en cours : tout est figé
+  cardsOwned: [],        // cartes prises pendant la partie
+  cardsTaken: null,      // ids des cartes uniques deja prises
   stormTimer: 0,
   baseHitFlash: 0,
   freeTypes: new Set(),
@@ -252,6 +256,10 @@ function startRun(opts = {}) {
   game.regenPool = 0;
   game.firstKillDone = false;
   game.leakShieldUsed = false;
+  game.drafting = false;
+  game.cardsOwned = [];
+  game.cardsTaken = new Set();
+  $('#draft').hidden = true;
   // Aucun compte à rebours : le joueur lance la première vague quand il veut.
   game.autoWave = tuto ? false : save.autoWave;
   game.autoLeft = 0;
@@ -287,7 +295,7 @@ function prepareNextWave() {
 }
 
 function startWave() {
-  if (game.waveRunning) return;
+  if (game.waveRunning || game.drafting) return;
   // En entraînement, la vague n'est disponible que quand l'étape l'attend.
   if (game.tutorial && !game.tutorial.canStartWave()) return;
   game.wave++;
@@ -369,10 +377,19 @@ function completeWave() {
   game.autoLeft = WAVE.autoWaveGap;
   UI.setWaveButton(game);
   UI.refreshShop(game);
+
+  if (draftDue(game.wave)) openDraft();
 }
 
 function endRun() {
   if (game.state !== STATE.GAME) return;
+
+  // Un draft encore ouvert resterait par-dessus l'ecran de fin : on le
+  // referme avant tout le reste.
+  if (game.drafting) {
+    game.drafting = false;
+    $('#draft').hidden = true;
+  }
 
   // L'entraînement ne compte pas comme une partie : pas de score, pas de stats.
   if (game.tutorial) { quitTutorial(); return; }
@@ -499,7 +516,8 @@ function frame(now) {
   const raw = Math.min(0.1, (now - last) / 1000);
   last = now;
 
-  if (game.state === STATE.GAME && !game.paused) {
+  const frozen = game.paused || game.drafting;
+  if (game.state === STATE.GAME && !frozen) {
     let mult = game.speed;
     if (game.vfx.slowmo > 0) mult *= 0.35;
     acc += raw * mult;
@@ -516,7 +534,8 @@ function frame(now) {
       UI.refreshShop(game);
       if (game.selected) UI.renderTowerPanel(game, game.selected);
     }
-  } else if (game.state === STATE.GAME && game.paused) {
+  } else if (game.state === STATE.GAME && frozen) {
+    // On continue a dessiner : le plateau reste visible derriere l'overlay.
     renderer.draw(game);
   } else if (game.state === STATE.TREE && treeView) {
     treeView.draw(raw);
@@ -530,6 +549,7 @@ function frame(now) {
 // ============================================================
 
 function pickTower(id) {
+  if (game.drafting) return;
   // Pendant l'entraînement, seules les tours de l'étape sont sélectionnables.
   if (game.allowedTowers && !game.allowedTowers.has(id)) return;
   if (game.placing === id) { game.placing = null; }
@@ -786,6 +806,7 @@ function updatePlaceValidity() {
 }
 
 function tryPlace() {
+  if (game.drafting) return;
   if (!game.placing || !game.hover) return;
   const { x, y } = game.hover;
   const id = game.placing;
@@ -856,6 +877,7 @@ function refusePlacement(x, y, reason) {
 }
 
 function selectTowerAt(x, y) {
+  if (game.drafting) return;
   const t = game.grid.towerAt(x, y);
   game.selected = t || null;
   UI.renderTowerPanel(game, game.selected);
@@ -863,6 +885,7 @@ function selectTowerAt(x, y) {
 }
 
 function sellSelected() {
+  if (game.drafting) return;
   const t = game.selected;
   if (!t) return;
   game.gold += t.sellValue(game.mods);
@@ -939,6 +962,7 @@ function bindGameInputs() {
   });
 
   $('#btn-quit').addEventListener('click', () => {
+    if (game.drafting) return;
     if (confirm('Abandonner la partie en cours ? Les matériaux de la vague atteinte seront conservés.')) {
       endRun();
     }
@@ -962,6 +986,7 @@ function bindGameInputs() {
 
   window.addEventListener('keydown', (ev) => {
     if (game.state !== STATE.GAME) return;
+    if (game.drafting) return;   // le draft capte tout
     const k = ev.key;
     if (k >= '1' && k <= '7') {
       pickTower(TOWER_ORDER[+k - 1]);
@@ -983,17 +1008,50 @@ function bindGameInputs() {
   });
 
   window.addEventListener('blur', () => {
-    if (game.state === STATE.GAME && !game.paused) togglePause();
+    if (game.state === STATE.GAME && !game.paused && !game.drafting) togglePause();
   });
 }
 
 function togglePause() {
+  // Interdit pendant un draft : sinon ESPACE relancerait la simulation
+  // derriere l'overlay.
+  if (game.drafting) return;
   game.paused = !game.paused;
   $('#pause-overlay').hidden = !game.paused;
   $('#btn-pause').textContent = game.paused ? 'REPRENDRE' : 'PAUSE';
   if (game.paused) {
     A({ targets: '.pause-text', scale: [0.6, 1], opacity: [0, 1], duration: 420, easing: 'easeOutElastic' });
   }
+}
+
+// ============================================================
+//  Draft de cartes — la couche roguelike
+//
+//  Toutes les 3 vagues, on fige la partie et on propose 3 cartes.
+//  Le tirage est pondéré par la vague : plus on avance, plus les
+//  raretés hautes sortent.
+// ============================================================
+
+function openDraft() {
+  if (game.tutorial) return;          // pas de draft pendant l'entraînement
+  const cards = drawCards(game);
+  if (!cards.length) return;
+
+  game.drafting = true;
+  game.autoLeft = WAVE.autoWaveGap;   // le décompte auto repart après le choix
+  UI.setWaveButton(game);
+
+  UI.renderDraft(game, cards, (card) => {
+    applyCard(game, card);
+    game.drafting = false;
+    UI.hideDraft();
+    UI.announceCard(card);
+    UI.refreshHud(game);
+    UI.refreshShop(game);
+    if (game.selected) UI.renderTowerPanel(game, game.selected);
+    UI.setWaveButton(game);
+    game.vfx.addFlash(0.2, card.color);
+  });
 }
 
 // ============================================================
@@ -1420,7 +1478,8 @@ function init() {
     get treeView() { return treeView; },
     get tutorial() { return game.tutorial; },
     tryPlace, buyNode, endRun, startWave, startRun, fitStage,
-    launchTutorial, pickTower, openLoadout, refreshLoadout, activeLoadout, variantUnlocked
+    launchTutorial, pickTower, openLoadout, refreshLoadout, activeLoadout, variantUnlocked,
+    openDraft, drawCards, applyCard, CARD_BY_ID
   };
 
   console.log(

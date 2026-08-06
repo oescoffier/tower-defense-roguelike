@@ -495,7 +495,10 @@ export const ENEMIES = {
 
 export const WAVE = {
   hpBase: 1.0,
-  hpGrowth: 1.157,       // hp(w) = hpBase * 1.157^(w-1) * (1 + w/30)
+  // Calibre AVEC le draft : sans cartes on meurt vers la vague 14, avec
+  // un draft correct on tient jusqu'a ~20. Le draft n'est pas un bonus,
+  // il fait partie de l'equation.
+  hpGrowth: 1.20,        // hp(w) = hpBase * 1.20^(w-1) * (1 + w/30)
   hpLate: 30,
   speedGrowth: 0.006,    // +0.6 % de vitesse par vague
   countBase: 9,
