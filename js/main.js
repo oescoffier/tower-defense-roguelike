@@ -15,7 +15,7 @@ import { buildWave, waveSummary, WaveRunner } from './waves.js';
 import { chainReaction, teslaStorm, explode, hit, enemiesInRange, canHit } from './combat.js';
 import { buildTree, computeMods, branchSummary, TreeView } from './skilltree.js';
 import { Tutorial, TUTORIAL_MAP, TUTORIAL_REWARD } from './tutorial.js';
-import { drawCards, applyCard, draftDue, CARD_BY_ID } from './cards.js';
+import { drawCards, applyCard, draftDue, CARD_BY_ID, cardArchetypes } from './cards.js';
 import { Save } from './save.js';
 import * as UI from './ui.js';
 import { A, $, $$ } from './ui.js';
@@ -260,6 +260,7 @@ function startRun(opts = {}) {
   game.cardsOwned = [];
   game.cardsTaken = new Set();
   $('#draft').hidden = true;
+  UI.toggleUpgrades(game, false);
   // Aucun compte à rebours : le joueur lance la première vague quand il veut.
   game.autoWave = tuto ? false : save.autoWave;
   game.autoLeft = 0;
@@ -935,6 +936,9 @@ function bindGameInputs() {
 
   $('#btn-pause').addEventListener('click', togglePause);
 
+  $('#btn-upgrades').addEventListener('click', () => UI.toggleUpgrades(game));
+  $('#upg-close').addEventListener('click', () => UI.toggleUpgrades(game, false));
+
   $('#btn-auto-wave').addEventListener('click', () => {
     game.autoWave = !game.autoWave;
     save.setAutoWave(game.autoWave);
@@ -1002,6 +1006,8 @@ function bindGameInputs() {
       startWave();
     } else if (k.toLowerCase() === 'v') {
       sellSelected();
+    } else if (k.toLowerCase() === 'a') {
+      UI.toggleUpgrades(game);
     } else if (k.toLowerCase() === 'u') {
       if (game.selected && game.selected.upgrade(game)) UI.renderTowerPanel(game, game.selected);
     }
@@ -1050,6 +1056,7 @@ function openDraft() {
     UI.refreshShop(game);
     if (game.selected) UI.renderTowerPanel(game, game.selected);
     UI.setWaveButton(game);
+    UI.renderUpgrades(game);
     game.vfx.addFlash(0.2, card.color);
   });
 }
@@ -1479,7 +1486,7 @@ function init() {
     get tutorial() { return game.tutorial; },
     tryPlace, buyNode, endRun, startWave, startRun, fitStage,
     launchTutorial, pickTower, openLoadout, refreshLoadout, activeLoadout, variantUnlocked,
-    openDraft, drawCards, applyCard, CARD_BY_ID
+    openDraft, drawCards, applyCard, CARD_BY_ID, cardArchetypes
   };
 
   console.log(

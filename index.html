@@ -223,6 +223,9 @@
             <button data-speed="3">×3</button>
           </div>
         </div>
+        <button class="btn btn-ghost btn-sm" id="btn-upgrades">
+          AMÉLIORATIONS<i class="btn-badge" id="upg-count">0</i>
+        </button>
         <button class="btn btn-ghost btn-sm" id="btn-help-game">AIDE</button>
         <button class="btn btn-ghost btn-sm hud-quit" id="btn-quit">ABANDONNER</button>
       </header>
@@ -258,6 +261,25 @@
                 <button class="btn btn-primary btn-sm tuto-next" id="tuto-next" hidden>CONTINUER ▶</button>
               </div>
             </div>
+
+            <!-- Tiroir des ameliorations : consultable en jeu, ne met pas
+                 la partie en pause (c'est de la lecture, pas un choix). -->
+            <aside class="upg-drawer" id="upg-drawer" hidden>
+              <div class="upg-head">
+                <span class="upg-title">TES AMÉLIORATIONS</span>
+                <button class="upg-close" id="upg-close">✕</button>
+              </div>
+              <div class="upg-body">
+                <div class="upg-section">
+                  <div class="upg-label">CARTES <b id="upg-n">0</b></div>
+                  <div class="upg-cards" id="upg-cards"></div>
+                </div>
+                <div class="upg-section">
+                  <div class="upg-label">EFFETS CUMULÉS</div>
+                  <div class="upg-mods" id="upg-mods"></div>
+                </div>
+              </div>
+            </aside>
 
             <div class="pause-overlay" id="pause-overlay" hidden>
               <div class="pause-text">PAUSE</div>

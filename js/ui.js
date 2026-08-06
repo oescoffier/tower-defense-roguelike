@@ -10,7 +10,7 @@ import {
   materialsForWave
 } from './config.js';
 import { towerCost } from './towers.js';
-import { RARITY, CARD_BY_ID } from './cards.js';
+import { RARITY, CARD_BY_ID, describeMods } from './cards.js';
 import tween from './tween.js';
 
 /** anime.js si le CDN a répondu, sinon le moteur maison. */
@@ -751,4 +751,58 @@ export function hideDraft() {
 /** Bandeau discret rappelant la carte qui vient d'etre prise. */
 export function announceCard(card) {
   toast(`<b>${card.icon} ${card.name}</b><br>${card.desc}`, 'good', 4200);
+}
+
+// ============================================================
+//  Tiroir des ameliorations
+// ============================================================
+
+/**
+ * Liste ce que le joueur a accumule pendant la partie : les cartes
+ * prises, puis le total des effets une fois tout cumule (arbre +
+ * commandant + cartes), traduit en francais lisible.
+ */
+export function renderUpgrades(game) {
+  const owned = (game.cardsOwned || []).map((id) => CARD_BY_ID[id]).filter(Boolean);
+  $('#upg-n').textContent = owned.length;
+  $('#upg-count').textContent = owned.length;
+
+  const list = $('#upg-cards');
+  list.innerHTML = owned.length
+    ? owned.map((c) => `
+      <div class="upg-card" style="border-left-color:${c.color}">
+        <span class="upg-card-icon" style="color:${c.color}">${c.icon}</span>
+        <span>
+          <span class="upg-card-name" style="color:${c.color}">${c.name}</span>
+          <span class="upg-card-desc">${c.desc}</span>
+        </span>
+      </div>`).join('')
+    : `<p class="upg-empty">Aucune carte pour l'instant. Une amélioration est proposée toutes les 3 vagues.</p>`;
+
+  // Effets cumules, groupes par portee
+  const rows = describeMods(game.mods);
+  const mods = $('#upg-mods');
+  if (!rows.length) {
+    mods.innerHTML = `<p class="upg-empty">Aucun effet actif.</p>`;
+    return;
+  }
+  let html = '';
+  let lastScope = null;
+  for (const r of rows) {
+    if (r.scope !== lastScope) {
+      html += `<div class="upg-mod-group">${r.scope}</div>`;
+      lastScope = r.scope;
+    }
+    html += `<div class="upg-mod">${r.text}</div>`;
+  }
+  mods.innerHTML = html;
+}
+
+export function toggleUpgrades(game, force) {
+  const el = $('#upg-drawer');
+  const open = force !== undefined ? force : el.hidden;
+  if (open) renderUpgrades(game);
+  el.hidden = !open;
+  $('#btn-upgrades').classList.toggle('on', open);
+  return open;
 }

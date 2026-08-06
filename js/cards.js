@@ -286,13 +286,82 @@ export function poolStats() {
 }
 
 // ============================================================
+//  Affinité — le tirage regarde ce que le joueur a réellement bâti
+// ============================================================
+// Proposer « +26% dégâts tesla » à quelqu'un qui n'a que des
+// mitraillettes, c'est lui faire perdre un choix sur trois. On pondère
+// donc les cartes par la composition de sa défense, sans jamais le dire
+// ni fermer complètement une porte : le plancher laisse toujours la
+// possibilité de découvrir une tourelle qu'on n'utilise pas encore.
+
+const AFFINITY = {
+  floor: 0.2,      // poids minimal pour une tourelle absente du terrain
+  ceil: 2.4,       // poids maximal pour une tourelle dominante
+  fullBiasAt: 8    // nombre de tours à partir duquel le biais est total
+};
+
+/** Préfixes de clés correspondant à une vraie tourelle. */
+const TOWER_NS = new Set(['mg', 'sniper', 'mortar', 'tesla', 'flame', 'aa']);
+
+/** Archétypes de tourelle concernés par une carte (vide = carte globale). */
+export function cardArchetypes(card) {
+  const out = new Set();
+  for (const key of Object.keys(card.mods)) {
+    const ns = key.split('.')[0];
+    if (TOWER_NS.has(ns)) out.add(ns);
+  }
+  return out;
+}
+
+/** Composition de la défense : nombre de tours par archétype. */
+function composition(game) {
+  const counts = Object.create(null);
+  let total = 0;
+  for (const t of (game.towers || [])) {
+    const a = t.archetype;
+    if (!TOWER_NS.has(a)) continue;   // les sacs de sable ne comptent pas
+    counts[a] = (counts[a] || 0) + 1;
+    total++;
+  }
+  return { counts, total };
+}
+
+/**
+ * Poids d'affinité d'une carte, entre `floor` et `ceil`.
+ * Une carte globale (économie, survie, toutes tours) vaut toujours 1.
+ * Une carte multi-tourelles prend le meilleur de ses archétypes, pour
+ * qu'un bonus transversal reste pertinent.
+ */
+export function affinityWeight(card, game) {
+  const arch = cardArchetypes(card);
+  if (!arch.size) return 1;
+
+  const { counts, total } = composition(game);
+  if (total === 0) return 1;   // aucune tour posée : rien à déduire
+
+  // Le biais monte avec la taille de la défense : en début de partie on
+  // ne sait pas encore ce que le joueur veut jouer, on ne l'enferme pas.
+  const strength = Math.min(1, total / AFFINITY.fullBiasAt);
+  const even = 1 / TOWER_NS.size;
+
+  let best = 0;
+  for (const a of arch) {
+    const share = (counts[a] || 0) / total;
+    const raw = AFFINITY.floor + (1 - AFFINITY.floor) * (share / even);
+    best = Math.max(best, Math.min(AFFINITY.ceil, raw));
+  }
+  return 1 + strength * (best - 1);
+}
+
+// ============================================================
 //  Tirage
 // ============================================================
 
 /**
  * Propose `count` cartes distinctes pour la vague en cours.
  * Les cartes `unique` déjà prises sont retirées du pool ; on tire
- * d'abord une rareté (pondérée par la vague), puis une carte dedans.
+ * d'abord une rareté (pondérée par la vague), puis une carte dedans
+ * (pondérée par l'affinité avec la défense du joueur).
  * Si une rareté est épuisée, on retombe sur les autres.
  */
 export function drawCards(game, rng = Math.random, count = DRAFT_CHOICES) {
@@ -304,6 +373,7 @@ export function drawCards(game, rng = Math.random, count = DRAFT_CHOICES) {
   });
 
   const weights = rarityWeights(game.wave || 1);
+  const affinity = new Map(pool.map((c) => [c.id, affinityWeight(c, game)]));
   const picked = [];
   const used = new Set();
 
@@ -323,7 +393,16 @@ export function drawCards(game, rng = Math.random, count = DRAFT_CHOICES) {
       if (roll <= 0) { chosen = b; break; }
     }
 
-    const card = chosen.list[Math.floor(rng() * chosen.list.length)];
+    // Tirage pondéré par l'affinité à l'intérieur de la rareté retenue
+    let wTotal = 0;
+    for (const c of chosen.list) wTotal += affinity.get(c.id);
+    let r2 = rng() * wTotal;
+    let card = chosen.list[chosen.list.length - 1];
+    for (const c of chosen.list) {
+      r2 -= affinity.get(c.id);
+      if (r2 <= 0) { card = c; break; }
+    }
+
     used.add(card.id);
     picked.push(card);
   }
@@ -352,4 +431,91 @@ export function applyCard(game, card) {
 /** Le draft est-il dû à la fin de cette vague ? */
 export function draftDue(wave) {
   return wave > 0 && wave % DRAFT_EVERY === 0;
+}
+
+// ============================================================
+//  Lecture des effets cumulés
+// ============================================================
+// Les clés de mods sont techniques (`mg.vsBoss`) ; l'onglet doit
+// afficher quelque chose de lisible. On traduit le suffixe, et le
+// préfixe donne la portée (une tourelle, ou tout le monde).
+
+const SCOPE = {
+  mg: 'Mitraillette', sniper: 'Sniper', mortar: 'Mortier',
+  tesla: 'Tesla', flame: 'Lance-flamme', aa: 'DCA',
+  sandbag: 'Sac de sable', player: 'Général'
+};
+
+const PROP = {
+  damage: 'dégâts', rate: 'cadence', range: 'portée', cost: 'coût',
+  splash: "rayon d'explosion", craterDps: 'dégâts de cratère', arcTime: 'temps de vol',
+  critChance: 'chance critique', critMult: 'dégâts critiques', pierce: 'perçage',
+  bounces: 'rebonds', bouncesFlat: 'rebonds', bounceFalloff: 'dégâts conservés par rebond',
+  bounceRange: 'portée de rebond', chainBlast: 'explosion en chaîne', chargeDur: 'durée de charge',
+  burnDps: 'dégâts de brûlure', burnDur: 'durée de brûlure', burnStacks: 'cumuls de brûlure',
+  cone: 'angle du cône', spread: 'propagation du feu', melt: "fonte d'armure",
+  turnRate: 'guidage', flakSplash: 'rayon de flak', missiles: 'missiles', missilesFlat: 'missiles',
+  armorPen: "pénétration d'armure", shred: "effritement d'armure", slow: 'ralentissement',
+  spinMax: 'régime maximum', spinUp: 'montée en régime', spinDown: 'perte de régime',
+  ricochet: 'ricochet', salvo: 'obus par salve', shrapnel: 'éclats', stun: 'étourdissement',
+  emp: 'EMP', execute: 'exécution', burn: 'brûlure à l\'impact',
+  vsBoss: 'dégâts contre les boss', vsAir: 'dégâts contre les aériens',
+  vsGround: 'dégâts contre le sol', vsArmor: 'dégâts contre les blindés',
+  vsShield: 'dégâts contre les boucliers', vsBurning: 'dégâts sur cible en feu',
+  vsSlowed: 'dégâts sur cible ralentie', lowHp: 'dégâts sur cible affaiblie',
+  fullHp: 'dégâts sur cible intacte',
+  lives: 'intégrité maximale', startGold: 'crédits de départ',
+  goldPerKill: 'crédits par élimination', waveBonus: 'prime de vague',
+  sellRatio: 'remboursement', materials: 'matériaux', interest: 'intérêts',
+  allDamage: 'dégâts (toutes tours)', allCost: 'coût de toutes les tours',
+  upgradeCost: 'coût des améliorations', regen: 'réparation par vague',
+  bossBounty: 'crédits des boss', firstBlood: 'prime de première élimination',
+  leakShield: 'brèche absorbée', lastStand: 'dégâts en dernier rempart'
+};
+
+/** Clés dont la valeur est un compte, pas un pourcentage. */
+const FLAT = new Set(['lives', 'startGold', 'armorPen', 'shred', 'bouncesFlat',
+  'missilesFlat', 'salvo', 'shrapnel', 'burnStacks', 'firstBlood', 'stun',
+  'spread', 'melt', 'bounceFalloff']);
+
+/** Clés binaires : un effet nommé, sans valeur à afficher. */
+const FLAGS = new Set(['deluge', 'fusillade', 'wall', 'oneshot', 'silence', 'cascade',
+  'carpet', 'scorched', 'implode', 'infinite', 'storm', 'overload', 'inferno',
+  'combust', 'dragon', 'cluster', 'nofly', 'barrage', 'multiLock', 'command',
+  'war', 'survivor', 'leakShield', 'burn']);
+
+/**
+ * Transforme la table de mods en lignes lisibles, triées par portée.
+ * Les valeurs internes de l'arbre (__survivorBonus) et les marqueurs de
+ * variante sont écartés : ils ne sont pas des « améliorations ».
+ */
+export function describeMods(mods) {
+  const rows = [];
+  for (const [key, value] of Object.entries(mods || {})) {
+    if (!value) continue;
+    if (key.startsWith('__') || key.startsWith('variant.')) continue;
+    const [ns, prop] = key.split('.');
+    if (!prop) continue;
+    const scope = SCOPE[ns];
+    if (!scope) continue;
+
+    const label = PROP[prop] || prop;
+    let text;
+    if (FLAGS.has(prop)) text = label.charAt(0).toUpperCase() + label.slice(1);
+    else if (FLAT.has(prop)) {
+      const v = Math.round(value * 10) / 10;
+      text = (v > 0 ? '+' : '') + v + ' ' + label;
+    } else {
+      const v = Math.round(value * 1000) / 10;
+      text = (v > 0 ? '+' : '') + v + '% ' + label;
+    }
+    rows.push({ key, scope, ns, text, value });
+  }
+
+  const order = ['player', 'mg', 'sniper', 'mortar', 'tesla', 'flame', 'aa', 'sandbag'];
+  rows.sort((a, b) => {
+    const d = order.indexOf(a.ns) - order.indexOf(b.ns);
+    return d !== 0 ? d : Math.abs(b.value) - Math.abs(a.value);
+  });
+  return rows;
 }
