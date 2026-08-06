@@ -565,8 +565,10 @@ export const TREE = {
   // Relevé : un arbre de +2000 nœuds n'a d'intérêt que si les effets
   // vraiment marquants y sont assez denses pour orienter un parcours.
   notableRate: 0.24,
-  costBase: 6,
-  costPerRing: 3,
+  // Cale sur la simulation : une partie moyenne (vague ~20, 166 materiaux)
+  // doit financer une quinzaine de noeuds d'entree, pas une trentaine.
+  costBase: 10,
+  costPerRing: 5,
   notableCostMult: 3,
   keystoneCostMult: 8,
   variantCostMult: 7,    // les variantes sont le gros lot d'une branche
@@ -850,12 +852,12 @@ export const VARIANTS = {
     {
       id: 'mg_dmg', name: 'CALIBRE LOURD', short: 'DÉGÂTS', icon: '✦', accent: '#e46363',
       desc: 'Munitions lourdes qui percent le blindage, au prix d\'une cadence divisée par deux.',
-      mult: { damage: 2.2, rate: 0.52 }, add: { armorPen: 6 }, cost: 1.15
+      mult: { damage: 1.8, rate: 0.5 }, add: { armorPen: 6 }, cost: 1.25
     },
     {
       id: 'mg_range', name: 'AFFÛT LONG', short: 'PORTÉE', icon: '◎', accent: '#71d58a',
       desc: 'Portée quasi doublée : une seule tourelle couvre plusieurs boucles du chemin.',
-      mult: { range: 1.85, damage: 0.85, rate: 0.9 }
+      mult: { range: 1.85, damage: 0.78, rate: 0.88 }
     }
   ],
 
@@ -868,13 +870,13 @@ export const VARIANTS = {
     {
       id: 'sniper_dmg', name: 'ANTI-MATÉRIEL', short: 'DÉGÂTS', icon: '✦', accent: '#b3261e',
       desc: 'Un coup, un trou : dégâts massifs, traverse deux cibles de plus, mais tire lentement.',
-      mult: { damage: 2.5, rate: 0.62 }, add: { pierce: 2 }, cost: 1.2
+      mult: { damage: 2.2, rate: 0.6 }, add: { pierce: 2 }, cost: 1.25
     },
     {
       id: 'sniper_support', name: 'POSTE DE COMMANDEMENT', short: 'SUPPORT', icon: '✚', accent: '#71d58a',
       desc: 'Tire faiblement, mais toutes les 3 vagues elle rend 1 point d\'intégrité et verse une prime en crédits.',
-      mult: { damage: 0.5, rate: 0.8 }, flags: { support: true }, cost: 1.1,
-      supportEvery: 3, supportLives: 1, supportGoldBase: 45, supportGoldPerWave: 8
+      mult: { damage: 0.42, rate: 0.75 }, flags: { support: true }, cost: 1.15,
+      supportEvery: 3, supportLives: 1, supportGoldBase: 18, supportGoldPerWave: 3
     }
   ],
 
@@ -887,13 +889,13 @@ export const VARIANTS = {
     {
       id: 'mortar_nuke', name: 'OGIVE NUCLÉAIRE', short: 'NUCLÉAIRE', icon: '☢', accent: '#c6e600',
       desc: 'Très lente, mais dévastatrice : énorme explosion, puis une zone irradiée qui continue à ronger tout ce qui la traverse.',
-      mult: { damage: 4.6, rate: 0.32, splash: 2.0, arcTime: 1.9 },
-      flags: { nuke: true }, cost: 1.7
+      mult: { damage: 2.8, rate: 0.23, splash: 1.75, arcTime: 2.2 },
+      flags: { nuke: true }, cost: 2.0
     },
     {
       id: 'mortar_stun', name: 'OBUS À CONCUSSION', short: 'ÉTOURDIT', icon: '◉', accent: '#8ad8ff',
       desc: 'Dégâts réduits, mais chaque explosion cloue sur place tout ce qu\'elle touche pendant un instant.',
-      mult: { damage: 0.72, splash: 1.25 }, flags: { stun: 0.7 }
+      mult: { damage: 0.48, splash: 1.15 }, flags: { stun: 0.6 }
     }
   ],
 
@@ -901,7 +903,7 @@ export const VARIANTS = {
     {
       id: 'tesla_bounces', name: 'ARC MULTIPLE', short: 'ÉCLAIRS', icon: '⌁', accent: '#0d67ff',
       desc: 'Deux fois plus de rebonds et une meilleure conservation des dégâts : ravage les groupes serrés.',
-      mult: { damage: 0.72 }, add: { bounces: 5, bounceFalloff: 0.07 }
+      mult: { damage: 0.88 }, add: { bounces: 6, bounceFalloff: 0.09 }
     },
     {
       id: 'tesla_dmg', name: 'SURTENSION', short: 'DÉGÂTS', icon: '✦', accent: '#e46363',
@@ -919,18 +921,18 @@ export const VARIANTS = {
     {
       id: 'flame_reach', name: 'LANCE LONGUE', short: 'PORTÉE', icon: '◎', accent: '#71d58a',
       desc: 'Un jet beaucoup plus long, mais un cône plus étroit : redoutable sur une ligne droite.',
-      mult: { range: 1.95, cone: 0.65 }
+      mult: { range: 2.1, cone: 0.7, damage: 1.1 }
     },
     {
       id: 'flame_nova', name: 'BRASIER', short: 'TOUT AUTOUR', icon: '❋', accent: '#ff3d3d',
       desc: 'Ne vise plus : brûle en permanence tout ce qui l\'entoure, sur 360°. À placer au cœur du trafic.',
-      mult: { range: 0.88, damage: 0.8 }, set: { cone: 360 },
+      mult: { range: 1.05, damage: 1.05 }, set: { cone: 360 },
       flags: { omni: true }, cost: 1.25
     },
     {
       id: 'flame_thermite', name: 'THERMITE', short: 'DÉGÂTS', icon: '✦', accent: '#e46363',
       desc: 'Flammes bien plus chaudes et brûlure dévastatrice, sur une portée un peu plus courte.',
-      mult: { damage: 2.2, burnDps: 2.5, range: 0.88, rate: 0.85 }, cost: 1.2
+      mult: { damage: 2.8, burnDps: 3.2, range: 0.92, rate: 0.9 }, cost: 1.2
     }
   ],
 
@@ -943,7 +945,7 @@ export const VARIANTS = {
     {
       id: 'aa_multilock', name: 'VERROUILLAGE MULTIPLE', short: 'MULTI-LOCK', icon: '⊹', accent: '#b878ff',
       desc: 'Chaque missile d\'une salve part sur une cible différente : aucun tir gaspillé sur un mourant.',
-      mult: { damage: 0.8 }, add: { missiles: 1 }, flags: { multiLock: true }
+      mult: { damage: 0.68 }, add: { missiles: 1 }, flags: { multiLock: true }
     },
     {
       id: 'aa_versatile', name: 'POLYVALENTE', short: 'SOL + AIR', icon: '✛', accent: '#71d58a',
