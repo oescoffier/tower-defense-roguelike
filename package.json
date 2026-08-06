@@ -9,6 +9,7 @@
     "test:craters": "node tests/craters.test.mjs",
     "test:variants": "node tests/variants.test.mjs",
     "test:antistun": "node tests/antistun.test.mjs",
-    "test": "npm run test:commanders && npm run test:grid && npm run test:craters && npm run test:variants && npm run test:antistun"
+    "test:cards": "node tests/cards.test.mjs",
+    "test": "npm run test:commanders && npm run test:grid && npm run test:craters && npm run test:variants && npm run test:antistun && npm run test:cards"
   }
 }

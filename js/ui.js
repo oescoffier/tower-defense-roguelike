@@ -10,7 +10,7 @@ import {
   materialsForWave
 } from './config.js';
 import { towerCost } from './towers.js';
-import { RARITY, CARD_BY_ID, describeMods } from './cards.js';
+import { RARITY, CARD_BY_ID, describeMods, cardArchetypes } from './cards.js';
 import tween from './tween.js';
 
 /** anime.js si le CDN a répondu, sinon le moteur maison. */
@@ -687,6 +687,44 @@ export function renderLoadoutSummary(save) {
 // ============================================================
 
 /**
+ * A quelle(s) tourelle(s) une carte s'adresse-t-elle ? Sert à afficher une
+ * pastille immédiatement visible (icône + couleur PROPRE À LA TOURELLE,
+ * pas la couleur de rareté) plutôt que de forcer à lire toute la
+ * description pour le deviner.
+ */
+function cardScopeInfo(card) {
+  const arches = [...cardArchetypes(card)];
+  if (!arches.length) return { kind: 'general', label: 'GÉNÉRAL', color: PALETTE.gold, icon: '★' };
+  if (arches.length === 1) {
+    const t = TOWERS[arches[0]];
+    return { kind: 'single', label: t.name, color: t.accent, icon: GLYPHS[arches[0]] };
+  }
+  return { kind: 'multi', label: `${arches.length} TOURS`, archetypes: arches };
+}
+
+/** Pastille pleine (carte de draft) : boîte colorée, bien visible. */
+function cardScopeBadge(card) {
+  const info = cardScopeInfo(card);
+  if (info.kind === 'multi') {
+    const chips = info.archetypes.map((a) => {
+      const t = TOWERS[a];
+      return `<i style="--scope:${t.accent}" title="${t.name}">${GLYPHS[a]}</i>`;
+    }).join('');
+    return `<span class="card-scope card-scope-multi">${chips}<b>${info.label}</b></span>`;
+  }
+  return `<span class="card-scope" style="--scope:${info.color}">${info.icon} ${info.label}</span>`;
+}
+
+/** Version compacte (liste "déjà en main", tiroir des améliorations). */
+function cardScopeInline(card) {
+  const info = cardScopeInfo(card);
+  if (info.kind === 'multi') {
+    return `<b class="scope-tag scope-multi">${info.archetypes.map((a) => GLYPHS[a]).join(' ')}</b>`;
+  }
+  return `<b class="scope-tag" style="color:${info.color}">${info.icon} ${info.label}</b>`;
+}
+
+/**
  * Affiche les 3 cartes proposees. `onPick` recoit la carte choisie.
  * L'overlay est plein ecran : le jeu doit deja etre fige par l'appelant.
  */
@@ -705,6 +743,7 @@ export function renderDraft(game, cards, onPick) {
           <span class="card-name">${c.name}</span>
         </span>
       </span>
+      ${cardScopeBadge(c)}
       <span class="card-desc">${c.desc}</span>
       <span class="card-take">PRENDRE</span>
     </button>`).join('');
@@ -714,7 +753,7 @@ export function renderDraft(game, cards, onPick) {
   const list2 = (game.cardsOwned || []).map((id) => CARD_BY_ID[id]).filter(Boolean);
   owned.innerHTML = list2.length
     ? `<span style="width:100%;margin-bottom:4px">DÉJÀ EN MAIN</span>` +
-      list2.map((c) => `<i style="border-left-color:${c.color}">${c.icon} ${c.name}</i>`).join('')
+      list2.map((c) => `<i style="border-left-color:${c.color}">${c.icon} ${c.name} ${cardScopeInline(c)}</i>`).join('')
     : '';
 
   $$('#draft-cards .card').forEach((btn) => {
@@ -773,7 +812,7 @@ export function renderUpgrades(game) {
       <div class="upg-card" style="border-left-color:${c.color}">
         <span class="upg-card-icon" style="color:${c.color}">${c.icon}</span>
         <span>
-          <span class="upg-card-name" style="color:${c.color}">${c.name}</span>
+          <span class="upg-card-name" style="color:${c.color}">${c.name}</span> ${cardScopeInline(c)}
           <span class="upg-card-desc">${c.desc}</span>
         </span>
       </div>`).join('')

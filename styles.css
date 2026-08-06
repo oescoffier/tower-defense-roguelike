@@ -1355,6 +1355,47 @@ b { font-weight: 700; }
   color: var(--text);
   margin-top: 2px;
 }
+/* Pastille indiquant quelle(s) tourelle(s) la carte concerne — couleur
+   PROPRE À LA TOURELLE (pas la couleur de rareté), pour se voir sans
+   avoir à lire toute la description. */
+.card-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border: 1px solid var(--scope, var(--muted));
+  color: var(--scope, var(--muted));
+  background: rgba(244, 244, 244, 0.04);
+}
+.card-scope-multi {
+  border-color: var(--surface-3);
+  color: var(--muted);
+}
+.card-scope-multi i {
+  font-style: normal;
+  width: 18px; height: 18px;
+  display: inline-grid; place-items: center;
+  border: 1px solid var(--scope, var(--muted));
+  color: var(--scope, var(--muted));
+  font-size: 0.66rem;
+  background: var(--surface);
+}
+.card-scope-multi b { font-weight: 400; margin-left: 2px; }
+
+/* Version compacte de la même pastille, pour les listes serrées
+   ("déjà en main", tiroir des améliorations). */
+.scope-tag {
+  font-weight: 400;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.scope-tag.scope-multi { color: var(--muted); }
+
 .card-desc {
   font-size: 0.76rem;
   line-height: 1.55;
