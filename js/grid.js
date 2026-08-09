@@ -577,7 +577,12 @@ export class Grid {
     // L'anneau tout juste ajouté n'est pas un vide parfait : quelques
     // cailloux y apparaissent aussi, comme sur la carte d'origine.
     this._scatterRingRocks();
-    const addedSpawn = this._addRingSpawn();
+
+    // Un nouveau spawn n'est même tenté qu'une extension sur
+    // MAP_GROWTH.spawnEvery (donc pas à chaque agrandissement).
+    this.growthCount = (this.growthCount || 0) + 1;
+    const addedSpawn = (this.growthCount % MAP_GROWTH.spawnEvery === 0)
+      ? this._addRingSpawn() : null;
 
     // Garantit qu'un chemin existe toujours vers TOUS les spawns malgré les
     // nouveaux cailloux, en rouvrant des roches au hasard si besoin (même
@@ -596,18 +601,34 @@ export class Grid {
     return { addedSpawn };
   }
 
-  /** Parsème quelques cailloux sur l'anneau extérieur fraîchement ajouté. */
+  /**
+   * Pose des cailloux sur l'anneau extérieur fraîchement ajouté, par
+   * courts tronçons séparés de passages nets — plutôt qu'un semis
+   * indépendant case par case, ce qui dessine de vrais chemins qui
+   * percent la bordure au lieu d'un mur troué au hasard.
+   */
   _scatterRingRocks() {
-    for (let x = 0; x < this.cols; x++) {
-      for (const y of [0, this.rows - 1]) {
-        if (Math.random() < MAP_GROWTH.ringRockChance) this.set(x, y, CELL.ROCK);
+    const [runMin, runMax] = MAP_GROWTH.ringRockRun;
+    const [gapMin, gapMax] = MAP_GROWTH.ringGapRun;
+    const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+
+    const walk = (cells) => {
+      let i = randInt(0, gapMax); // décale le départ pour varier d'un côté à l'autre
+      while (i < cells.length) {
+        const runLen = randInt(runMin, runMax);
+        for (let k = 0; k < runLen && i < cells.length; k++, i++) {
+          this.set(cells[i].x, cells[i].y, CELL.ROCK);
+        }
+        i += randInt(gapMin, gapMax);
       }
-    }
-    for (let y = 1; y < this.rows - 1; y++) {
-      for (const x of [0, this.cols - 1]) {
-        if (Math.random() < MAP_GROWTH.ringRockChance) this.set(x, y, CELL.ROCK);
-      }
-    }
+    };
+
+    const top = [], bottom = [];
+    for (let x = 0; x < this.cols; x++) { top.push({ x, y: 0 }); bottom.push({ x, y: this.rows - 1 }); }
+    const left = [], right = [];
+    for (let y = 1; y < this.rows - 1; y++) { left.push({ x: 0, y }); right.push({ x: this.cols - 1, y }); }
+
+    walk(top); walk(bottom); walk(left); walk(right);
   }
 
   /**

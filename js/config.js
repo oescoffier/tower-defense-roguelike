@@ -45,12 +45,19 @@ export const GRID = {
 export const MAP_GROWTH = {
   every: 10,
   maxSpawns: 5,
-  spawnChance: 0.55,
+  // Un nouveau spawn n'est même TENTÉ qu'une extension sur `spawnEvery`
+  // (donc toutes les 20 vagues, pas 10) et avec cette chance-là seulement :
+  // ce n'est jamais garanti à chaque agrandissement.
+  spawnEvery: 2,
+  spawnChance: 0.4,
   // Un nouveau spawn trop près de la base laisserait à peine le temps de
   // réagir : distance minimale (en cases) exigée entre les deux.
   minSpawnDistFromBase: 7,
-  // Densité de cailloux générée sur l'anneau fraîchement ajouté par grow().
-  ringRockChance: 0.32
+  // Cailloux de l'anneau fraîchement ajouté par grow() : posés par
+  // tronçons courts séparés de passages nets (voir Grid._scatterRingRocks),
+  // pas case par case au hasard — ça dessine des chemins plutôt qu'un semis.
+  ringRockRun: [1, 3],  // longueur d'un tronçon de cailloux (min, max)
+  ringGapRun: [3, 6]    // longueur du passage libre entre deux tronçons
 };
 
 export const CELL = {

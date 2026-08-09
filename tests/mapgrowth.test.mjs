@@ -86,30 +86,35 @@ console.log('\n=== CYCLES SUCCESSIFS D\'EXTENSION ===\n');
 }
 
 // ============================================================
-//  Nouveau point de spawn sur l'anneau — forcé via Math.random mocké,
-//  pour tester déterministe les deux branches (ajout / pas d'ajout).
+//  Nouveau point de spawn — Grid._addRingSpawn() testé directement et
+//  isolément (Math.random mocké UNIQUEMENT autour de cet appel, pour ne
+//  pas interférer avec le semis de cailloux qui, lui, utilise aussi le
+//  hasard) : les deux branches, ajout / pas d'ajout.
 // ============================================================
-console.log('\n=== NOUVEAUX POINTS DE SPAWN SUR L\'ANNEAU ===\n');
+console.log('\n=== NOUVEAUX POINTS DE SPAWN SUR L\'ANNEAU (_addRingSpawn) ===\n');
 {
   const realRandom = Math.random;
   try {
     GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
     const grid = new Grid(3);
+    grid.grow(); // anneau réel, pour avoir de vraies cases candidates
     const before = grid.spawns.length;
 
     Math.random = () => 0.99; // > spawnChance : ne doit rien ajouter
-    grid.grow();
-    if (grid.spawns.length !== before) fail(`un spawn a été ajouté malgré un tirage défavorable (${before} → ${grid.spawns.length})`);
-    else console.log(`[PASS] tirage défavorable (0.99) → aucun nouveau spawn (${grid.spawns.length} au total)`);
+    const missed = grid._addRingSpawn();
+    Math.random = realRandom;
+    if (missed !== null || grid.spawns.length !== before) {
+      fail(`un spawn a été ajouté malgré un tirage défavorable (${before} → ${grid.spawns.length})`);
+    } else {
+      console.log(`[PASS] tirage défavorable (0.99) → aucun nouveau spawn (${grid.spawns.length} au total)`);
+    }
 
-    // 0.4 : sous spawnChance (0.55, donc un spawn est ajouté) mais au-dessus
-    // de ringRockChance (0.32, donc l'anneau reste sans caillou et libre).
-    Math.random = () => 0.4;
-    grid.grow();
-    if (grid.spawns.length !== before + 1) {
+    Math.random = () => 0.01; // < spawnChance : doit en ajouter un
+    const added = grid._addRingSpawn();
+    Math.random = realRandom;
+    if (!added || grid.spawns.length !== before + 1) {
       fail(`aucun nouveau spawn ajouté malgré un tirage favorable (toujours ${grid.spawns.length})`);
     } else {
-      const added = grid.spawns[grid.spawns.length - 1];
       const problems = [];
       if (grid.cells[grid.idx(added.x, added.y)] !== CELL.SPAWN) problems.push('la case ajoutée n\'a pas la valeur CELL.SPAWN');
       const onRing = added.x === 0 || added.y === 0 || added.x === grid.cols - 1 || added.y === grid.rows - 1;
@@ -118,11 +123,32 @@ console.log('\n=== NOUVEAUX POINTS DE SPAWN SUR L\'ANNEAU ===\n');
       const distToBase = Math.hypot(added.x - grid.base.x, added.y - grid.base.y);
       if (distToBase < MAP_GROWTH.minSpawnDistFromBase) problems.push(`trop près de la base (${distToBase.toFixed(1)} case(s), minimum ${MAP_GROWTH.minSpawnDistFromBase})`);
       if (problems.length) fail(`nouveau spawn : ${problems.join(' · ')}`);
-      else console.log(`[PASS] tirage favorable (0) → nouveau spawn en (${added.x},${added.y}), sur l'anneau, à ${distToBase.toFixed(1)} cases de la base, non constructible`);
+      else console.log(`[PASS] tirage favorable → nouveau spawn en (${added.x},${added.y}), sur l'anneau, à ${distToBase.toFixed(1)} cases de la base, non constructible`);
     }
   } finally {
     Math.random = realRandom;
   }
+}
+
+// ============================================================
+//  Un nouveau spawn n'est jamais tenté à chaque extension : seulement
+//  une extension sur MAP_GROWTH.spawnEvery (donc pas toutes les 10 vagues).
+// ============================================================
+console.log('\n=== LES NOUVEAUX SPAWNS NE SONT PAS LIÉS À CHAQUE EXTENSION ===\n');
+{
+  GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
+  const grid = new Grid(17);
+  let violation = null;
+  for (let i = 1; i <= 12 && !violation; i++) {
+    const before = grid.spawns.length;
+    grid.grow();
+    const added = grid.spawns.length > before;
+    if (added && grid.growthCount % MAP_GROWTH.spawnEvery !== 0) {
+      violation = `spawn ajouté au cycle ${i} (growthCount=${grid.growthCount}), pas un multiple de spawnEvery=${MAP_GROWTH.spawnEvery}`;
+    }
+  }
+  if (violation) fail(violation);
+  else console.log(`[PASS] sur 12 extensions, aucun nouveau spawn hors des cycles multiples de spawnEvery=${MAP_GROWTH.spawnEvery} (growthCount final : ${grid.growthCount})`);
 }
 
 // ============================================================
@@ -163,10 +189,12 @@ console.log('\n=== CHEMINS MULTIPLES PAR SPAWN ===\n');
   try {
     GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
     const grid = new Grid(11);
-    Math.random = () => 0.4;
     grid.grow();
     grid.grow();
+    Math.random = () => 0.01; // force un 2e spawn, isolé de tout semis de cailloux
+    grid._addRingSpawn();
     Math.random = realRandom;
+    grid.recompute(); // _addRingSpawn() seul ne retrace pas grid.paths (grow() s'en charge normalement)
 
     const problems = [];
     if (!grid.paths || grid.paths.length !== grid.spawns.length) {
@@ -198,8 +226,9 @@ console.log('\n=== RÉPARTITION DES ENNEMIS SUR PLUSIEURS SPAWNS ===\n');
   try {
     GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
     const grid = new Grid(9);
-    Math.random = () => 0.4; // force l'ajout d'un 2e spawn, sans caillou sur l'anneau
     grid.grow();
+    Math.random = () => 0.01; // force l'ajout d'un 2e spawn, isolé de tout semis de cailloux
+    grid._addRingSpawn();
     Math.random = realRandom;
 
     if (grid.spawns.length < 2) {
