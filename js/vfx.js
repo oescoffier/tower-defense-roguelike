@@ -120,7 +120,7 @@ export class Vfx {
     if (amount > this.flash) { this.flash = amount; this.flashColor = color; }
   }
   addChroma(amount) { if (this.enabled) this.chroma = Math.min(12, this.chroma + amount); }
-  addSlowmo(dur) { this.slowmo = Math.max(this.slowmo, dur); }
+  addSlowmo(dur) { if (this.enabled) this.slowmo = Math.max(this.slowmo, dur); }
 
   // ----------------------------------------------------------
   //  Effets composés
@@ -247,6 +247,7 @@ export class Vfx {
   }
 
   coin(x, y, tx, ty) {
+    if (!this.enabled) return;
     this.particles.push({
       x, y, vx: rand(-60, 60), vy: rand(-120, -50), life: 0.7, max: 0.7,
       color: PALETTE.gold, size: 3.4, grav: 0, drag: 1, shape: 'coin',
