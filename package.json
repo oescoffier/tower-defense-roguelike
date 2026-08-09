@@ -17,6 +17,7 @@
     "test:spatial": "node tests/spatial.test.mjs",
     "test:norange": "node tests/norange.test.mjs",
     "test:phalanx": "node tests/phalanx.test.mjs",
-    "test": "npm run test:commanders && npm run test:grid && npm run test:craters && npm run test:variants && npm run test:antistun && npm run test:cards && npm run test:mapgrowth && npm run test:matchups && npm run test:camera && npm run test:siege && npm run test:spatial && npm run test:norange && npm run test:phalanx"
+    "test:explosions": "node tests/explosions.test.mjs",
+    "test": "npm run test:commanders && npm run test:grid && npm run test:craters && npm run test:variants && npm run test:antistun && npm run test:cards && npm run test:mapgrowth && npm run test:matchups && npm run test:camera && npm run test:siege && npm run test:spatial && npm run test:norange && npm run test:phalanx && npm run test:explosions"
   }
 }

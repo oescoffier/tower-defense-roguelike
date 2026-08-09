@@ -1129,7 +1129,12 @@ export const FX = {
   shakeCap: 14,
   dmgNumberLife: 0.85,
   craterLife: 4.0,
-  trailLife: 0.35
+  trailLife: 0.35,
+  // Fenêtre (s) et rayon (× le plus grand des deux rayons d'explosion)
+  // dans lesquels deux explosions sont jugées "au même endroit" — la
+  // seconde n'affiche alors qu'un éclat réduit au lieu du plein tarif.
+  explosionCombineWindow: 0.15,
+  explosionCombineDist: 0.6
 };
 
 export const SPEEDS = [1, 2, 3];

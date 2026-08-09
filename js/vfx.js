@@ -27,6 +27,10 @@ export class Vfx {
     this.chroma = 0;
     this.slowmo = 0;
     this.time = 0;
+    // Explosions récentes (position + heure), pour repérer quand une
+    // nouvelle explosion tombe quasi au même endroit qu'une autre encore
+    // fraîche — voir explosion().
+    this._recentExplosions = [];
   }
 
   clear() {
@@ -37,6 +41,7 @@ export class Vfx {
     this.craters.length = 0;
     this.beams.length = 0;
     this.texts.length = 0;
+    this._recentExplosions.length = 0;
     this.shake = this.flash = this.chroma = this.slowmo = 0;
   }
 
@@ -133,6 +138,33 @@ export class Vfx {
   }
 
   explosion(x, y, radius, color = PALETTE.fire, power = 1) {
+    // Plusieurs mortiers (ou obus + éclats) qui tombent quasi au même
+    // endroit et au même instant produisaient chacun une explosion
+    // complète (2 anneaux + 50+ particules) empilée sur les autres :
+    // invisible à l'œil (une seule tache de lumière saturée) mais payée
+    // plein tarif à chaque fois. On ne garde le rendu complet que pour la
+    // première d'un groupe rapproché ; les suivantes n'ajoutent qu'un
+    // éclat plus léger, pour rester visibles sans dupliquer le coût.
+    const now = this.time;
+    const recent = this._recentExplosions;
+    for (let i = recent.length - 1; i >= 0; i--) {
+      if (now - recent[i].t > FX.explosionCombineWindow) recent.splice(i, 1);
+    }
+    const overlapping = recent.some((r) => Math.hypot(r.x - x, r.y - y) < Math.max(radius, r.r) * FX.explosionCombineDist);
+    recent.push({ x, y, t: now, r: radius });
+
+    if (overlapping) {
+      this.ring(x, y, radius * 0.1, radius * 0.8, 0.22, color, 2);
+      for (let i = 0; i < 7; i++) {
+        const a = rand(0, TAU);
+        const s = rand(60, 220) * power;
+        this.particle(x, y, Math.cos(a) * s, Math.sin(a) * s, rand(0.2, 0.4),
+          pick([color, '#ffffff']), rand(2, 4), { drag: 0.9, glow: true });
+      }
+      this.addFlash(0.05 * power, color);
+      return;
+    }
+
     this.ring(x, y, radius * 0.15, radius, 0.34, '#ffffff', 4);
     this.ring(x, y, radius * 0.05, radius * 1.28, 0.5, color, 2);
     const n = Math.min(46, Math.round(20 * power));
