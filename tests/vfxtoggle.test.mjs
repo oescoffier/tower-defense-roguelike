@@ -8,6 +8,10 @@
 // ============================================================
 import { Vfx } from '../js/vfx.js';
 import { Save } from '../js/save.js';
+import { Grid } from '../js/grid.js';
+import { Enemy } from '../js/enemies.js';
+import { Tower } from '../js/towers.js';
+import { Weapons } from '../js/combat.js';
 
 let fails = 0;
 const check = (cond, msg) => {
@@ -98,6 +102,44 @@ console.log('\n=== Vfx.enabled = false : TOUTES les méthodes composées, une pa
     const after = snapshot();
     check(before === after, `Vfx.${name}(...) n'ajoute rien quand enabled=false`);
   }
+}
+
+console.log('\n=== INTÉGRATION RÉELLE : la MITRAILLETTE (tir + impact) via le vrai pipeline Tower/Projectile ===\n');
+{
+  // Pas seulement la classe Vfx isolée : le vrai chemin tour → projectile
+  // → impact (js/combat.js, Weapons.mg), celui visé par le rapport initial
+  // ("particules jaunes sur les monstres"). Beaucoup de tirs, effets
+  // visuels coupés dès le départ : zéro particule, zéro anneau, à aucun
+  // moment de la simulation.
+  const grid = new Grid(1);
+  const game = {
+    grid, mods: {}, enemies: [], projectiles: [], towers: [],
+    vfx: new Vfx(), time: 0, chainBlastMult: 0.6,
+    onEnemyKilled() {}, onEnemyLeaked() {}
+  };
+  game.vfx.enabled = false;
+
+  const mg = new Tower('mg', 0, 0, game);
+  game.towers.push(mg);
+  const enemy = new Enemy('juggernaut', grid, {});
+  enemy.x = mg.px + 60; enemy.y = mg.py;
+  game.enemies.push(enemy);
+
+  const DT = 1 / 60;
+  let maxParticlesSeen = 0, maxRingsSeen = 0;
+  for (let i = 0; i < 300; i++) { // 5 simulated seconds : largement de quoi tirer et toucher plusieurs fois à 8 tirs/s
+    Weapons.mg(mg, game, enemy);
+    for (const p of game.projectiles) p.update(DT, game);
+    game.projectiles = game.projectiles.filter((p) => !p.dead);
+    game.vfx.update(DT);
+    maxParticlesSeen = Math.max(maxParticlesSeen, game.vfx.particles.length);
+    maxRingsSeen = Math.max(maxRingsSeen, game.vfx.rings.length);
+    game.time += DT;
+  }
+
+  check(maxParticlesSeen === 0, `aucune particule à aucun instant sur 300 pas de simulation (tirs + impacts mitrailleuse), max observé : ${maxParticlesSeen}`);
+  check(maxRingsSeen === 0, `aucun anneau à aucun instant sur 300 pas de simulation, max observé : ${maxRingsSeen}`);
+  check(enemy.hp < enemy.maxHp, `la mitrailleuse inflige bien des dégâts malgré les effets visuels coupés (${enemy.maxHp - enemy.hp} dégâts) — seul le rendu est coupé, pas le gameplay`);
 }
 
 console.log('\n=== Vfx.enabled = true (par défaut) : tout fonctionne normalement ===\n');

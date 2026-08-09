@@ -411,7 +411,14 @@ export const Weapons = {
       onHit: (g, e) => {
         const wall = game.mods['mg.wall'] && Math.hypot(e.x - t.px, e.y - t.py) < C;
         hit(t, e, g, dmg * (wall ? 1.6 : 1), { armorPen: t.stats.armorPen || 0 });
-        g.vfx.impact(e.x, e.y, '#ffe9a8', 4, 0.7);
+        // À 8 tirs/seconde par tour, un impact complet (4 particules + anneau)
+        // À CHAQUE coup, multiplié par toutes les mitrailleuses posées, noie
+        // l'écran sous un nuage de particules jaunes dès qu'un paquet
+        // d'ennemis se fait mitrailler — un tir sur trois suffit à garder le
+        // retour visuel sans saturer. Et si "EFFETS VISUELS" est coupé, ZÉRO
+        // étincelle, sans exception (le tirage au sort lui-même est court-
+        // circuité — pas juste le rendu final, qui l'était déjà via Vfx.enabled).
+        if (g.vfx.enabled && Math.random() < 0.3) g.vfx.impact(e.x, e.y, '#ffe9a8', 1, 0.45);
         const slow = game.mods['mg.slow'] || 0;
         if (slow > 0) e.applySlow(slow, 0.6, g);
         // Ricochet
