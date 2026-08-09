@@ -57,8 +57,10 @@ export class Enemy {
       this.x = p.x; this.y = p.y; this.angle = p.a;
       this.bob = Math.random() * Math.PI * 2;
     } else {
-      this.x = grid.cx(grid.spawn.x);
-      this.y = grid.cy(grid.spawn.y);
+      const spawns = grid.spawns || [grid.spawn];
+      const sp = spawns[Math.floor(Math.random() * spawns.length)];
+      this.x = grid.cx(sp.x);
+      this.y = grid.cy(sp.y);
       this.angle = 0;
       this.target = null;
       this.wobble = Math.random() * Math.PI * 2;

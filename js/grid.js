@@ -3,7 +3,7 @@
 //  et chemin aérien fixe.
 // ============================================================
 
-import { GRID, CELL } from './config.js';
+import { GRID, CELL, MAP_GROWTH } from './config.js';
 import { Rng } from './rng.js';
 
 export class Grid {
@@ -30,6 +30,10 @@ export class Grid {
 
     if (fixed) this.applyFixed(fixed);
     else this.generate(seed);
+
+    // Liste des points d'entrée au sol : this.spawn reste le premier (celui
+    // d'origine), grow() peut en ajouter d'autres sur les anneaux extérieurs.
+    this.spawns = [this.spawn];
 
     // Champ de distance BFS (distance en cases jusqu'à la base) + chemin de référence
     this.dist = new Int32Array(this.cols * this.rows).fill(-1);
@@ -434,7 +438,8 @@ export class Grid {
 
   _reachable(extraBlock) {
     const d = this.computeDistance(extraBlock);
-    return d[this.idx(this.spawn.x, this.spawn.y)] !== -1;
+    const spawns = this.spawns || [this.spawn];
+    return spawns.every((s) => d[this.idx(s.x, s.y)] !== -1);
   }
 
   /** Recalcule le champ de distance et le chemin de référence spawn→base. */
@@ -496,8 +501,10 @@ export class Grid {
     if (!this.buildable(x, y)) return { ok: false, reason: 'OCCUPÉ' };
 
     const test = this.computeDistance({ x, y });
-    if (test[this.idx(this.spawn.x, this.spawn.y)] === -1) {
-      return { ok: false, reason: 'CHEMIN COUPÉ' };
+    for (const s of this.spawns || [this.spawn]) {
+      if (test[this.idx(s.x, s.y)] === -1) {
+        return { ok: false, reason: 'CHEMIN COUPÉ' };
+      }
     }
     for (const e of groundEnemies) {
       if (e.dead || e.air) continue;
@@ -530,6 +537,80 @@ export class Grid {
   towerAt(x, y) {
     if (!this.inBounds(x, y)) return null;
     return this.towers[this.idx(x, y)];
+  }
+
+  // ----------------------------------------------------------
+  //  Extension infinie de la carte — appelée toutes les MAP_GROWTH.every
+  //  vagues. Ajoute une case tout autour (donc +2 colonnes, +2 lignes),
+  //  ce qui décale l'intégralité du contenu existant d'une case en (1,1).
+  //  GRID.cols/rows (config global, dont dépendent GRID.w/h) sont mis à
+  //  jour ici pour que canvas/UI restent synchronisés avec la grille.
+  // ----------------------------------------------------------
+  grow() {
+    const off = 1;
+    const oldCols = this.cols, oldRows = this.rows;
+    const newCols = oldCols + off * 2, newRows = oldRows + off * 2;
+    const newCells = new Uint8Array(newCols * newRows).fill(CELL.EMPTY);
+    const newTowers = new Array(newCols * newRows).fill(null);
+    const newIdx = (x, y) => y * newCols + x;
+
+    for (let y = 0; y < oldRows; y++) {
+      for (let x = 0; x < oldCols; x++) {
+        const oi = y * oldCols + x;
+        newCells[newIdx(x + off, y + off)] = this.cells[oi];
+        newTowers[newIdx(x + off, y + off)] = this.towers[oi];
+      }
+    }
+
+    this.cols = newCols;
+    this.rows = newRows;
+    this.cells = newCells;
+    this.towers = newTowers;
+    GRID.cols = newCols;
+    GRID.rows = newRows;
+
+    this.base = { x: this.base.x + off, y: this.base.y + off };
+    this.spawns = this.spawns.map((s) => ({ x: s.x + off, y: s.y + off }));
+    this.spawn = this.spawns[0];
+
+    const addedSpawn = this._addRingSpawn();
+
+    this.dist = new Int32Array(this.cols * this.rows).fill(-1);
+    this.flow = new Int8Array(this.cols * this.rows * 2);
+    this.recompute();
+    this.buildAirPath();
+
+    return { addedSpawn };
+  }
+
+  /**
+   * Avec une chance à chaque extension, ouvre un nouveau point de spawn
+   * au sol sur l'anneau tout juste ajouté — plafonné pour ne pas non plus
+   * étaler les défenses à l'infini.
+   */
+  _addRingSpawn() {
+    if (this.spawns.length >= MAP_GROWTH.maxSpawns) return null;
+    if (Math.random() >= MAP_GROWTH.spawnChance) return null;
+
+    const taken = new Set(this.spawns.map((s) => `${s.x},${s.y}`));
+    taken.add(`${this.base.x},${this.base.y}`);
+    const ring = [];
+    for (let x = 0; x < this.cols; x++) {
+      for (const y of [0, this.rows - 1]) {
+        if (this.cells[this.idx(x, y)] === CELL.EMPTY && !taken.has(`${x},${y}`)) ring.push({ x, y });
+      }
+    }
+    for (let y = 1; y < this.rows - 1; y++) {
+      for (const x of [0, this.cols - 1]) {
+        if (this.cells[this.idx(x, y)] === CELL.EMPTY && !taken.has(`${x},${y}`)) ring.push({ x, y });
+      }
+    }
+    if (!ring.length) return null;
+
+    const pick = ring[Math.floor(Math.random() * ring.length)];
+    this.set(pick.x, pick.y, CELL.SPAWN);
+    this.spawns.push(pick);
+    return pick;
   }
 
   // ----------------------------------------------------------

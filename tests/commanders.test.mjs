@@ -98,9 +98,14 @@ function mirrorFirePulse(cmdr, ab, game) {
       return true;
     }
     case 'execute': {
+      const maxD2 = ab.rangeLimited ? cmdr.rangePx * cmdr.rangePx : Infinity;
       let worst = null, worstRatio = ab.threshold;
       for (const e of game.enemies) {
         if (e.dead || e.boss) continue;
+        if (ab.rangeLimited) {
+          const dx = e.x - cmdr.px, dy = e.y - cmdr.py;
+          if (dx * dx + dy * dy > maxD2) continue;
+        }
         if (e.hpRatio < worstRatio) { worstRatio = e.hpRatio; worst = e; }
       }
       if (!worst) return false;
@@ -400,6 +405,35 @@ for (const id of COMMANDER_ORDER) {
 
   if (!ok) fail(`${def.name}: la pulsation "${ab.kind}" n'a pas produit l'effet attendu (${detail})`);
   else console.log(`[PASS] ${def.name.padEnd(20)} — ${ab.kind}, ${detail}`);
+}
+
+// ============================================================
+//  Nerf FANTÔME : l'exécution est bornée à sa portée (sinon un seul
+//  commandant nettoie n'importe quelle vague depuis un coin de la carte,
+//  combo "impossible à perdre" avec un sniper full exécution).
+// ============================================================
+
+console.log('\n=== PORTÉE DE L\'EXÉCUTION (nerf FANTÔME) ===\n');
+{
+  const def = COMMANDERS.cmdr_ghost;
+  const ab = def.ability;
+  if (!ab.rangeLimited) fail('FANTÔME : ability.rangeLimited devrait être vrai (nerf retiré ?)');
+
+  const game = makeGame();
+  const sx = game.grid.spawn.x, sy = game.grid.spawn.y;
+  const cmdr = new Tower('cmdr_ghost', sx, sy, game);
+  cmdr.rankMult = 1;
+  game.towers.push(cmdr);
+
+  const inRange = makeEnemy(game, 'grunt', cmdr.px + cmdr.rangePx * 0.5, cmdr.py);
+  inRange.hp = Math.max(1, Math.round(inRange.maxHp * 0.1));
+  const outOfRange = makeEnemy(game, 'grunt', cmdr.px + cmdr.rangePx * 3, cmdr.py);
+  outOfRange.hp = Math.max(1, Math.round(outOfRange.maxHp * 0.1));
+
+  mirrorFirePulse(cmdr, ab, game);
+  if (outOfRange.dead) fail('FANTÔME : a exécuté un ennemi hors de sa portée — le nerf ne fonctionne pas');
+  else if (!inRange.dead) fail('FANTÔME : n\'a pas exécuté l\'ennemi mourant qui était bien à portée');
+  else console.log(`[PASS] FANTÔME               — exécute à portée (${Math.round(cmdr.rangePx / C)} cases), épargne hors de portée`);
 }
 
 // ============================================================

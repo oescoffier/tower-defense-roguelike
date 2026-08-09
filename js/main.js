@@ -4,7 +4,7 @@
 
 import {
   STATE, GRID, ECONOMY, WAVE, TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_RANK_KILLS, PALETTE, TARGET,
-  VARIANT_ORDER, VARIANT_BY_ID, materialsForWave
+  VARIANT_ORDER, VARIANT_BY_ID, materialsForWave, waveLeakMult, MAP_GROWTH
 } from './config.js';
 import { Grid } from './grid.js';
 import { Enemy } from './enemies.js';
@@ -151,15 +151,16 @@ const game = {
       UI.toast('<b>BOUCLIER DE SECTEUR</b><br>Brèche absorbée sans dégât', 'good', 2400);
       return;
     }
-    this.lives -= e.leak;
+    const dmg = Math.max(1, Math.round(e.leak * waveLeakMult(this.wave)));
+    this.lives -= dmg;
     this.baseHitFlash = 1;
     this.vfx.addShake(5);
     this.vfx.addFlash(0.3, PALETTE.danger);
     this.vfx.addChroma(6);
     const b = this.grid;
     this.vfx.ring(b.cx(b.base.x), b.cy(b.base.y), 6, 90, 0.5, PALETTE.danger, 5);
-    this.vfx.floatText(b.cx(b.base.x), b.cy(b.base.y) - 34, `-${e.leak}`, PALETTE.danger, 22, 1.2);
-    UI.toast(`<b>BRÈCHE</b><br>${e.name} a franchi la ligne · −${e.leak} intégrité`, 'bad', 2600);
+    this.vfx.floatText(b.cx(b.base.x), b.cy(b.base.y) - 34, `-${dmg}`, PALETTE.danger, 22, 1.2);
+    UI.toast(`<b>BRÈCHE</b><br>${e.name} a franchi la ligne · −${dmg} intégrité`, 'bad', 2600);
     this.applySurvivor();
     if (this.lives <= 0) { this.lives = 0; endRun(); }
   },
@@ -329,6 +330,46 @@ function startWave() {
   }
 }
 
+/**
+ * Extension infinie de la carte (toutes les MAP_GROWTH.every vagues) :
+ * +1 case tout autour de la grille, ce qui décale tout le contenu existant
+ * d'une case. Les tours et ennemis au sol sont des états permanents, donc
+ * migrés précisément ; les projectiles en vol sont juste effacés (durée de
+ * vie sub-seconde, migrer sx/sy/tx/ty pour chaque type n'en vaut pas la
+ * peine pour un effet purement cosmétique).
+ */
+function growMap() {
+  const grid = game.grid;
+  const off = grid.cell;
+  const { addedSpawn } = grid.grow();
+
+  for (const t of game.towers) {
+    t.gx += 1; t.gy += 1;
+    t.px = grid.cx(t.gx);
+    t.py = grid.cy(t.gy);
+    for (const c of t.craters) { c.x += off; c.y += off; }
+  }
+
+  for (const e of game.enemies) {
+    if (e.air || e.dead) continue;
+    e.x += off; e.y += off;
+    e._pickTarget();
+  }
+
+  game.projectiles.length = 0;
+
+  renderer.resize();
+  fitStage();
+
+  const b = grid;
+  game.vfx.addFlash(0.2, PALETTE.accent);
+  game.vfx.floatText(b.cx(b.base.x), b.cy(b.base.y) - 50, 'SECTEUR ÉTENDU', PALETTE.accent, 18, 1.4);
+  UI.toast(
+    `<b>EXTENSION DU SECTEUR</b><br>La carte s'agrandit${addedSpawn ? ' · nouveau point de spawn au sol détecté' : ''}`,
+    'bad', 3400
+  );
+}
+
 function completeWave() {
   game.waveRunning = false;
   game.waveRunner = null;
@@ -373,6 +414,8 @@ function completeWave() {
     `<b>VAGUE ${game.wave} REPOUSSÉE</b><br>+${bonus} crédits${interest ? ` · +${interest} intérêts` : ''}`,
     'good', 2800
   );
+
+  if (game.wave % MAP_GROWTH.every === 0) growMap();
 
   prepareNextWave();
   game.autoLeft = WAVE.autoWaveGap;
@@ -674,9 +717,14 @@ function fireCommanderPulse(cmdr, ab, game) {
       break;
     }
     case 'execute': {
+      const maxD2 = ab.rangeLimited ? cmdr.rangePx * cmdr.rangePx : Infinity;
       let worst = null, worstRatio = ab.threshold;
       for (const e of game.enemies) {
         if (e.dead || e.boss) continue;
+        if (ab.rangeLimited) {
+          const dx = e.x - cmdr.px, dy = e.y - cmdr.py;
+          if (dx * dx + dy * dy > maxD2) continue;
+        }
         if (e.hpRatio < worstRatio) { worstRatio = e.hpRatio; worst = e; }
       }
       if (!worst) return;

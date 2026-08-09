@@ -29,6 +29,15 @@ export const GRID = {
   get h() { return this.rows * this.cell; }
 };
 
+// Extension infinie de la carte (voir Grid.grow()) : toutes les `every`
+// vagues, la grille gagne une case tout autour, avec une chance d'ouvrir un
+// nouveau point de spawn au sol sur l'anneau fraîchement ajouté.
+export const MAP_GROWTH = {
+  every: 10,
+  maxSpawns: 5,
+  spawnChance: 0.55
+};
+
 export const CELL = {
   EMPTY: 0,
   ROCK: 1,
@@ -272,8 +281,10 @@ export const COMMANDERS = {
   cmdr_ghost: {
     id: 'cmdr_ghost', name: 'FANTÔME', archetype: 'sniper', cost: 420, accent: '#ff3b3b',
     targets: TARGET.BOTH, damage: 900, rate: 1.4, range: 11, pierce: 6, critChance: 0.35, critMult: 4,
-    desc: 'Tir fantôme, précision inhumaine. Toutes les 4 secondes, achève instantanément l\'ennemi le plus proche de la mort sur tout le terrain (hors boss).',
-    ability: { type: 'pulse', kind: 'execute', interval: 4, threshold: 0.4 },
+    desc: 'Tir fantôme, précision inhumaine. Toutes les 6 secondes, achève instantanément l\'ennemi le plus proche de la mort dans sa portée (hors boss).',
+    // rangeLimited : borné à sa propre portée, sinon un seul Fantôme nettoie
+    // n'importe quelle vague depuis un coin de la carte (combo "impossible à perdre").
+    ability: { type: 'pulse', kind: 'execute', interval: 6, threshold: 0.22, rangeLimited: true },
     upgrades: []
   },
   cmdr_hawkeye: {
@@ -502,8 +513,11 @@ export const WAVE = {
   hpLate: 30,
   speedGrowth: 0.006,    // +0.6 % de vitesse par vague
   countBase: 9,
-  countGrowth: 0.85,     // +0.85 ennemi par vague
-  countCap: 60,
+  countGrowth: 0.95,     // +0.95 ennemi par vague
+  // Plafond relevé très haut : sur une run longue (carte qui grandit à
+  // l'infini, cf. Grid.grow) le nombre d'ennemis doit continuer de monter
+  // au lieu de plafonner vers la vague 60 comme avant.
+  countCap: 220,
   airRampStart: 2,
   airRampEnd: 26,
   airMax: 0.35,
@@ -511,7 +525,11 @@ export const WAVE = {
   spawnGapMin: 0.16,
   bossGroundEvery: 10,
   bossAirEvery: 15,
-  autoWaveGap: 4         // répit (s) entre deux vagues en mode automatique
+  autoWaveGap: 4,        // répit (s) entre deux vagues en mode automatique
+  // Dégâts de fuite (vies perdues par ennemi qui atteint la base) : croissance
+  // linéaire pour que laisser fuir des ennemis reste dangereux même très tard
+  // en partie, sans exploser aussi vite que les PV (sinon 1 fuite = game over).
+  leakGrowth: 0.035      // +3.5 % de dégâts de fuite par vague
 };
 
 export const ECONOMY = {
@@ -542,6 +560,10 @@ export function waveAirRatio(wave) {
   if (wave < WAVE.airRampStart) return 0;
   const t = Math.min(1, (wave - WAVE.airRampStart) / (WAVE.airRampEnd - WAVE.airRampStart));
   return t * WAVE.airMax;
+}
+
+export function waveLeakMult(wave) {
+  return 1 + WAVE.leakGrowth * Math.max(0, wave - 1);
 }
 
 // ============================================================

@@ -320,22 +320,24 @@ export class Renderer {
 
   _drawSpawn(ctx, game, t) {
     const g = game.grid;
-    const x = g.cx(g.spawn.x), y = g.cy(g.spawn.y);
     ctx.save();
-    ctx.strokeStyle = PALETTE.danger;
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 3; i++) {
-      const p = ((t * 0.7 + i / 3) % 1);
-      ctx.globalAlpha = (1 - p) * 0.6;
-      ctx.beginPath();
-      ctx.arc(x, y, 6 + p * 26, 0, TAU);
-      ctx.stroke();
+    for (const s of g.spawns || [g.spawn]) {
+      const x = g.cx(s.x), y = g.cy(s.y);
+      ctx.strokeStyle = PALETTE.danger;
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        const p = ((t * 0.7 + i / 3) % 1);
+        ctx.globalAlpha = (1 - p) * 0.6;
+        ctx.beginPath();
+        ctx.arc(x, y, 6 + p * 26, 0, TAU);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = PALETTE.danger;
+      ctx.fillRect(x - 7, y - 7, 14, 14);
+      ctx.strokeStyle = PALETTE.line;
+      ctx.strokeRect(x - 7, y - 7, 14, 14);
     }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = PALETTE.danger;
-    ctx.fillRect(x - 7, y - 7, 14, 14);
-    ctx.strokeStyle = PALETTE.line;
-    ctx.strokeRect(x - 7, y - 7, 14, 14);
     ctx.restore();
   }
 
