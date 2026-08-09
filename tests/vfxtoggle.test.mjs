@@ -1,10 +1,10 @@
 // ============================================================
 //  Test headless (Node, sans DOM) : le réglage "EFFETS VISUELS" du menu
-//  pause (Vfx.enabled, piloté par save.vfxEnabled) coupe entièrement les
-//  émetteurs décoratifs (particules, anneaux, arcs, rayons, cratères,
-//  secousse, flash, chromatique) sans toucher aux nombres de dégâts ni
-//  aux textes flottants, qui restent informatifs. Voir js/vfx.js et
-//  js/save.js.
+//  pause (Vfx.enabled, piloté par save.vfxEnabled) coupe LITTÉRALEMENT
+//  TOUS les émetteurs de Vfx — particules, anneaux, arcs, rayons,
+//  cratères, secousse, flash, chromatique, ET les nombres de dégâts /
+//  textes flottants (les "points jaunes" et "trucs des dégâts").
+//  Voir js/vfx.js et js/save.js.
 // ============================================================
 import { Vfx } from '../js/vfx.js';
 import { Save } from '../js/save.js';
@@ -15,7 +15,7 @@ const check = (cond, msg) => {
   else console.log(`[PASS] ${msg}`);
 };
 
-console.log('\n=== Vfx.enabled = false : aucun émetteur décoratif ne produit quoi que ce soit ===\n');
+console.log('\n=== Vfx.enabled = false : STRICTEMENT AUCUN émetteur ne produit quoi que ce soit ===\n');
 {
   const vfx = new Vfx();
   vfx.enabled = false;
@@ -28,6 +28,8 @@ console.log('\n=== Vfx.enabled = false : aucun émetteur décoratif ne produit q
   vfx.addShake(10);
   vfx.addFlash(1);
   vfx.addChroma(10);
+  vfx.damageNumber(0, 0, 42);
+  vfx.floatText(0, 0, 'PERCÉE');
   vfx.explosion(0, 0, 60);
   vfx.impact(0, 0);
   vfx.muzzle(0, 0, 0);
@@ -40,26 +42,20 @@ console.log('\n=== Vfx.enabled = false : aucun émetteur décoratif ne produit q
   check(vfx.shake === 0, 'aucune secousse accumulée');
   check(vfx.flash === 0, 'aucun flash accumulé');
   check(vfx.chroma === 0, 'aucune aberration chromatique accumulée');
-}
-
-console.log('\n=== Vfx.enabled = false : les nombres de dégâts et textes flottants restent affichés ===\n');
-{
-  const vfx = new Vfx();
-  vfx.enabled = false;
-
-  vfx.damageNumber(0, 0, 42);
-  vfx.floatText(0, 0, 'PERCÉE');
-
-  check(vfx.numbers.length === 1, 'un nombre de dégâts est bien affiché même effets visuels coupés');
-  check(vfx.texts.length === 1, 'un texte flottant est bien affiché même effets visuels coupés');
+  check(vfx.numbers.length === 0, 'aucun nombre de dégâts (les "points jaunes") émis');
+  check(vfx.texts.length === 0, 'aucun texte flottant émis');
 }
 
 console.log('\n=== Vfx.enabled = true (par défaut) : tout fonctionne normalement ===\n');
 {
   const vfx = new Vfx();
   vfx.explosion(0, 0, 60);
+  vfx.damageNumber(0, 0, 42);
+  vfx.floatText(0, 0, 'PERCÉE');
   check(vfx.particles.length > 0, 'les particules fonctionnent normalement quand les effets visuels sont activés');
   check(vfx.rings.length > 0, 'les anneaux fonctionnent normalement quand les effets visuels sont activés');
+  check(vfx.numbers.length === 1, 'les nombres de dégâts fonctionnent normalement quand les effets visuels sont activés');
+  check(vfx.texts.length === 1, 'les textes flottants fonctionnent normalement quand les effets visuels sont activés');
 }
 
 console.log('\n=== Save : le réglage vfxEnabled est persisté indépendamment de shakeEnabled ===\n');

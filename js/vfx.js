@@ -50,9 +50,9 @@ export class Vfx {
   //  Émetteurs
   //  Toutes les méthodes ci-dessous sont coupées d'un coup par
   //  `this.enabled = false` (réglage "EFFETS VISUELS" du menu pause) :
-  //  aucune particule/anneau/arc/rayon/cratère/secousse/flash/chromatique
-  //  n'est plus émis, sans toucher aux nombres de dégâts ni aux textes
-  //  flottants (informatifs, quasi gratuits, on les garde).
+  //  plus aucune particule/anneau/arc/rayon/cratère/secousse/flash/
+  //  chromatique/nombre de dégâts/texte flottant n'est émis — tout ce
+  //  qui est rendu par Vfx, sans exception.
   // ----------------------------------------------------------
   particle(x, y, vx, vy, life, color, size, opts = {}) {
     if (!this.enabled) return;
@@ -88,7 +88,7 @@ export class Vfx {
   }
 
   damageNumber(x, y, value, opts = {}) {
-    if (value <= 0) return;
+    if (!this.enabled || value <= 0) return;
     const crit = !!opts.crit;
     this.numbers.push({
       x: x + rand(-6, 6), y, value,
@@ -102,6 +102,7 @@ export class Vfx {
   }
 
   floatText(x, y, text, color = '#f4f4f4', size = 16, life = 1.1) {
+    if (!this.enabled) return;
     this.texts.push({ x, y, text, color, size, life, max: life, vy: -26 });
   }
 
