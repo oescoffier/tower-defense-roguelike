@@ -581,6 +581,16 @@ export const ENEMIES = {
     id: 'raptor', name: 'RAPACE', air: true, hp: 1100, speed: 1.4, armor: 12,
     gold: 160, leak: 5, radius: 22, color: '#b878ff', shape: 'boss',
     boss: true, unlock: 15
+  },
+  meteor: {
+    id: 'meteor', name: 'MÉTÉORE', air: true, hp: 140, speed: 1.5, armor: 4,
+    gold: 22, leak: 2, radius: 15, color: '#ff6a3c', shape: 'meteor',
+    // À sa mort (pas en cas de fuite au nexus), s'écrase là où il vole et
+    // détruit tout ce qui se trouve sur les 13 cases sous lui — un
+    // losange de rayon 2 (lui + les 4 cases adjacentes + les 8 à
+    // distance 2), tours ET cailloux compris, base et spawns épargnés.
+    // Doit être abattu loin du mur de tours, pas juste au-dessus.
+    fallRadius: 2, unlock: 10
   }
 };
 

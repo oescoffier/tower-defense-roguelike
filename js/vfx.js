@@ -22,6 +22,7 @@ export class Vfx {
     this.shakeX = 0;
     this.shakeY = 0;
     this.shakeMult = 1; // réglage joueur (0 = désactivé) — voir save.settings.shake
+    this.enabled = true; // réglage joueur global — voir save.settings.vfx
     this.flash = 0;
     this.flashColor = '#ffffff';
     this.chroma = 0;
@@ -47,8 +48,14 @@ export class Vfx {
 
   // ----------------------------------------------------------
   //  Émetteurs
+  //  Toutes les méthodes ci-dessous sont coupées d'un coup par
+  //  `this.enabled = false` (réglage "EFFETS VISUELS" du menu pause) :
+  //  aucune particule/anneau/arc/rayon/cratère/secousse/flash/chromatique
+  //  n'est plus émis, sans toucher aux nombres de dégâts ni aux textes
+  //  flottants (informatifs, quasi gratuits, on les garde).
   // ----------------------------------------------------------
   particle(x, y, vx, vy, life, color, size, opts = {}) {
+    if (!this.enabled) return;
     if (this.particles.length >= FX.maxParticles) this.particles.shift();
     this.particles.push({
       x, y, vx, vy, life, max: life, color, size,
@@ -63,6 +70,7 @@ export class Vfx {
   }
 
   ring(x, y, r0, r1, life, color, width = 3, opts = {}) {
+    if (!this.enabled) return;
     this.rings.push({
       x, y, r0, r1, life, max: life, color, width,
       fill: opts.fill || null, ease: opts.ease || 'out'
@@ -70,10 +78,12 @@ export class Vfx {
   }
 
   arc(pts, life, color, width = 2, opts = {}) {
+    if (!this.enabled) return;
     this.arcs.push({ pts, life, max: life, color, width, branches: opts.branches || [] });
   }
 
   beam(x1, y1, x2, y2, life, color, width) {
+    if (!this.enabled) return;
     this.beams.push({ x1, y1, x2, y2, life, max: life, color, width });
   }
 
@@ -96,17 +106,19 @@ export class Vfx {
   }
 
   crater(x, y, r, life = FX.craterLife) {
+    if (!this.enabled) return;
     this.craters.push({ x, y, r, life, max: life });
   }
 
   addShake(amount) {
-    if (this.shakeMult <= 0) return;
+    if (!this.enabled || this.shakeMult <= 0) return;
     this.shake = Math.min(FX.shakeCap, this.shake + amount * this.shakeMult);
   }
   addFlash(amount, color = '#ffffff') {
+    if (!this.enabled) return;
     if (amount > this.flash) { this.flash = amount; this.flashColor = color; }
   }
-  addChroma(amount) { this.chroma = Math.min(12, this.chroma + amount); }
+  addChroma(amount) { if (this.enabled) this.chroma = Math.min(12, this.chroma + amount); }
   addSlowmo(dur) { this.slowmo = Math.max(this.slowmo, dur); }
 
   // ----------------------------------------------------------
@@ -138,6 +150,7 @@ export class Vfx {
   }
 
   explosion(x, y, radius, color = PALETTE.fire, power = 1) {
+    if (!this.enabled) return;
     // Plusieurs mortiers (ou obus + éclats) qui tombent quasi au même
     // endroit et au même instant produisaient chacun une explosion
     // complète (2 anneaux + 50+ particules) empilée sur les autres :

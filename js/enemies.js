@@ -548,6 +548,25 @@ export function drawEnemy(ctx, e, time) {
       ctx.strokeRect(-r * 0.9, -r * 1.35, r * 0.5, r * 2.7);
       break;
     }
+    case 'meteor': {
+      ctx.beginPath();
+      for (let i = 0; i < 7; i++) {
+        const a = i / 7 * Math.PI * 2;
+        const rr = r * (i % 2 ? 0.72 : 1.15);
+        ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // traînée incandescente à l'arrière
+      ctx.globalAlpha = 0.55 + Math.sin(time * 12) * 0.2;
+      ctx.fillStyle = PALETTE.fire;
+      ctx.beginPath();
+      ctx.moveTo(-r * 1.7, 0);
+      ctx.lineTo(-r * 0.6, -r * 0.5);
+      ctx.lineTo(-r * 0.6, r * 0.5);
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+      break;
+    }
     case 'boss': {
       const pulse = 1 + Math.sin(time * 3) * 0.04;
       ctx.rotate(e.air ? 0 : Math.sin(time * 1.5) * 0.06);

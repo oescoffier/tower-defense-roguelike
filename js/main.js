@@ -3,7 +3,7 @@
 // ============================================================
 
 import {
-  STATE, GRID, ECONOMY, WAVE, TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_RANK_KILLS, PALETTE, TARGET,
+  STATE, GRID, CELL, FX, ECONOMY, WAVE, TOWERS, TOWER_ORDER, COMMANDERS, COMMANDER_RANK_KILLS, PALETTE, TARGET,
   VARIANT_ORDER, VARIANT_BY_ID, materialsForWave, waveLeakMult, MAP_GROWTH
 } from './config.js';
 import { Grid } from './grid.js';
@@ -124,6 +124,9 @@ const game = {
 
     // Réaction en chaîne Tesla
     if (e.charged > 0 && e.chargedDmg > 0) chainReaction(this, e);
+
+    // MÉTÉORE : s'écrase là où il vole et détruit tout sous lui
+    if (e.def.fallRadius) meteorImpact(this, e);
 
     // Scindeur
     if (e.def.splitInto) {
@@ -681,6 +684,57 @@ function deployedCommander() {
   return game.towers.find((t) => t.isCommander) || null;
 }
 
+/**
+ * MÉTÉORE : à sa mort, s'écrase au sol et détruit tout ce qui se trouve
+ * sur les `e.def.fallRadius` cases autour de sa position (losange de
+ * distance de Manhattan, 13 cases pour un rayon de 2) — tours ET
+ * cailloux, base et spawns épargnés. Un aérien qu'il vaut mieux abattre
+ * loin de son propre mur de tours plutôt qu'au-dessus.
+ */
+function meteorImpact(game, e) {
+  const g = game.grid;
+  const center = g.cellAt(e.x, e.y);
+  const radius = e.def.fallRadius;
+  let hitAnything = false;
+
+  for (let dx = -radius; dx <= radius; dx++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      if (Math.abs(dx) + Math.abs(dy) > radius) continue;
+      const gx = center.x + dx, gy = center.y + dy;
+      if (!g.inBounds(gx, gy)) continue;
+      const cell = g.cells[g.idx(gx, gy)];
+      if (cell === CELL.BASE || cell === CELL.SPAWN) continue;
+
+      if (cell === CELL.TOWER) {
+        const tower = g.remove(gx, gy);
+        if (tower) {
+          const ti = game.towers.indexOf(tower);
+          if (ti !== -1) game.towers.splice(ti, 1);
+          if (game.selected === tower) { game.selected = null; UI.renderTowerPanel(game, null); }
+          hitAnything = true;
+        }
+      } else if (cell === CELL.ROCK) {
+        g.set(gx, gy, CELL.EMPTY);
+        hitAnything = true;
+      }
+    }
+  }
+
+  if (hitAnything) {
+    g.recompute();
+    for (const other of game.enemies) other.repath();
+    applyCommanderTowerAura(game);
+    UI.refreshShop(game);
+  }
+  UI.refreshHud(game);
+
+  game.vfx.explosion(e.x, e.y, g.cell * 2.6, PALETTE.fire, 1.6);
+  game.vfx.crater(e.x, e.y, g.cell * 2.1, FX.craterLife);
+  game.vfx.addShake(6);
+  game.vfx.floatText(e.x, e.y - 24, 'IMPACT', PALETTE.danger, 15, 1);
+  UI.toast(`<b>IMPACT</b><br>${e.name} s'est écrasé, détruisant tout sur sa chute`, 'bad', 2600);
+}
+
 // ============================================================
 //  Aptitudes de commandant — mécaniques propres, introuvables dans
 //  l'arbre de compétences (auras spatiales, pulsations, déclencheurs
@@ -1100,6 +1154,15 @@ function bindGameInputs() {
   chkShake.addEventListener('change', () => {
     save.setShakeEnabled(chkShake.checked);
     game.vfx.shakeMult = chkShake.checked ? 1 : 0;
+  });
+
+  const chkVfx = $('#chk-vfx');
+  chkVfx.checked = save.vfxEnabled;
+  game.vfx.enabled = save.vfxEnabled;
+  chkVfx.addEventListener('change', () => {
+    save.setVfxEnabled(chkVfx.checked);
+    game.vfx.enabled = chkVfx.checked;
+    if (!chkVfx.checked) game.vfx.clear();
   });
 
   $('#speed-btns').addEventListener('click', (ev) => {

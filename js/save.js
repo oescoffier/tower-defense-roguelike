@@ -17,7 +17,7 @@ const DEFAULTS = () => ({
   tutorialDone: false,
   tutorialRewarded: false,
   loadout: {},          // archetype -> id de variante retenue
-  settings: { speed: 1, shake: true, autoWave: false }
+  settings: { speed: 1, shake: true, vfx: true, autoWave: false }
 });
 
 export class Save {
@@ -35,6 +35,9 @@ export class Save {
 
   get shakeEnabled() { return this.data.settings.shake !== false; }
   setShakeEnabled(v) { this.data.settings.shake = !!v; this.persist(); }
+
+  get vfxEnabled() { return this.data.settings.vfx !== false; }
+  setVfxEnabled(v) { this.data.settings.vfx = !!v; this.persist(); }
 
   get autoWave() { return !!this.data.settings.autoWave; }
   setAutoWave(v) { this.data.settings.autoWave = !!v; this.persist(); }
