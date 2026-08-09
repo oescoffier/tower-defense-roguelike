@@ -173,5 +173,72 @@ console.log('\n=== TESLA : CHAÎNE VS CIBLE ISOLÉE ===\n');
   else console.log(`[PASS] cible esseulée → ${solo} touché, groupe compact → ${cluster} touchés (chaîne bien dépendante de la proximité)`);
 }
 
+// ============================================================
+//  MONOLITHE (hitCap) : aucun coup unique, même un "one-shot" à
+//  9999+ dégâts (exécution sniper), ne peut jamais lui retirer plus de
+//  5% de ses PV max d'un coup. Seul le DPS soutenu (plusieurs coups
+//  distincts) en vient à bout — le vrai mur contre le full sniper.
+// ============================================================
+console.log('\n=== MONOLITHE : PLAFOND DE DÉGÂTS PAR COUP ===\n');
+{
+  const grid = new Grid(1);
+  const cap = new Enemy('monolith', grid, {});
+  const capExpected = cap.maxHp * 0.05;
+
+  const oneShot = cap.damage(cap.hp + cap.shield + 9999, { ignoreArmor: true, crit: true }, null);
+  if (!(oneShot <= capExpected + 0.01)) {
+    fail(`un coup "exécution" de 9999+ dégâts a retiré ${oneShot} PV, attendu au plus ${capExpected.toFixed(1)} (plafond 5%)`);
+  } else if (cap.dead) {
+    fail('un coup unique a tué le MONOLITHE malgré le plafond — hitCap ne protège pas contre la mort en un coup');
+  } else {
+    console.log(`[PASS] un coup de 9999+ dégâts (exécution) ne retire que ${oneShot.toFixed(1)}/${cap.maxHp} PV (plafond ${capExpected.toFixed(1)})`);
+  }
+
+  // Le DPS soutenu (beaucoup de petits coups, chacun sous le plafond) doit
+  // par contre fonctionner normalement et finir par le tuer.
+  const dps = new Enemy('monolith', grid, {});
+  let hits = 0;
+  while (!dps.dead && hits < 500) { dps.damage(6, {}, null); hits++; }
+  if (!dps.dead) fail(`500 petits coups de 6 dégâts n'ont pas suffi à tuer le MONOLITHE (${dps.hp}/${dps.maxHp} restants) — le DPS soutenu devrait fonctionner`);
+  else console.log(`[PASS] le DPS soutenu (petits coups répétés) tue bien le MONOLITHE en ${hits} coups`);
+
+  // Un ennemi normal (sans hitCap) ne doit voir aucun changement de comportement.
+  const normal = new Enemy('grunt', grid, {});
+  const applied = normal.damage(normal.maxHp * 2, {}, null);
+  if (!(applied >= normal.maxHp - 0.01)) fail(`un ennemi sans hitCap ne devrait subir aucun plafonnement (obtenu ${applied}/${normal.maxHp})`);
+  else console.log('[PASS] un ennemi sans hitCap (grunt) meurt normalement en un coup surpuissant, aucune régression');
+}
+
+// ============================================================
+//  MORTIER : zone morte — ne peut pas tirer sur une cible à moins de
+//  minRange, exactement comme au-delà de sa portée max.
+// ============================================================
+console.log('\n=== MORTIER : ZONE MORTE (minRange) ===\n');
+{
+  const game = makeGame();
+  const mortar = new Tower('mortar', 0, 0, game);
+  game.towers.push(mortar);
+
+  if (!(mortar.rangeMinPx > 0)) {
+    fail(`mortar.rangeMinPx = ${mortar.rangeMinPx}, attendu > 0 (minRange configuré à ${TOWERS.mortar.minRange})`);
+  } else {
+    const tooClose = new Enemy('grunt', game.grid, {});
+    tooClose.x = mortar.px + mortar.rangeMinPx * 0.5; tooClose.y = mortar.py;
+    game.enemies.push(tooClose);
+
+    const inWindow = new Enemy('grunt', game.grid, {});
+    inWindow.x = mortar.px + mortar.rangeMinPx + (mortar.rangePx - mortar.rangeMinPx) * 0.5;
+    inWindow.y = mortar.py;
+    game.enemies.push(inWindow);
+
+    mortar.update(1 / 60, game);
+    const problems = [];
+    if (mortar.target === tooClose) problems.push('a ciblé un ennemi dans sa zone morte');
+    if (mortar.target !== inWindow) problems.push('n\'a pas ciblé l\'ennemi pourtant bien dans sa fenêtre de tir');
+    if (problems.length) fail(`zone morte du mortier : ${problems.join(' · ')}`);
+    else console.log(`[PASS] mortier : ignore une cible à ${(mortar.rangeMinPx * 0.5 / GRID.cell).toFixed(1)} cases (zone morte), vise celle dans sa fenêtre de tir`);
+  }
+}
+
 console.log(`\n${fails === 0 ? 'TOUT EST VERT.' : `${fails} PROBLÈME(S) DÉTECTÉ(S).`}\n`);
 process.exit(fails === 0 ? 0 : 1);

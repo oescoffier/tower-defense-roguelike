@@ -349,7 +349,24 @@ function startWave() {
 function growMap() {
   const grid = game.grid;
   const off = grid.cell;
-  const { addedSpawn } = grid.grow();
+  const { addedSpawn, destroyedTowers } = grid.grow();
+
+  // Un nouveau spawn perce le chemin le plus court vers la base à travers
+  // tout ce qui s'y trouve, tours comprises (voir Grid._carvePathToBase).
+  // Elles sont déjà retirées de la grille ; il reste à les retirer de
+  // game.towers et prévenir le joueur — perte sèche, aucun remboursement.
+  for (const t of destroyedTowers) {
+    // Décalées ici (avant les survivantes ci-dessous) pour afficher
+    // l'effet au bon endroit sur la nouvelle grille.
+    t.gx += 1; t.gy += 1;
+    t.px = grid.cx(t.gx);
+    t.py = grid.cy(t.gy);
+    game.vfx.explosion(t.px, t.py, grid.cell * 0.9, PALETTE.danger, 1.4);
+    game.vfx.floatText(t.px, t.py - 20, 'DÉTRUITE', PALETTE.danger, 14, 1);
+    const ti = game.towers.indexOf(t);
+    if (ti !== -1) game.towers.splice(ti, 1);
+    if (game.selected === t) { game.selected = null; UI.renderTowerPanel(game, null); }
+  }
 
   for (const t of game.towers) {
     t.gx += 1; t.gy += 1;
@@ -371,11 +388,21 @@ function growMap() {
   renderer.resize();
   fitStage();
 
+  if (destroyedTowers.length) {
+    applyCommanderTowerAura(game);
+    UI.refreshShop(game);
+    UI.refreshHud(game);
+  }
+
   const b = grid;
   game.vfx.addFlash(0.2, PALETTE.accent);
   game.vfx.floatText(b.cx(b.base.x), b.cy(b.base.y) - 50, 'SECTEUR ÉTENDU', PALETTE.accent, 18, 1.4);
+  const spawnMsg = addedSpawn ? ' · nouveau point de spawn au sol détecté' : '';
+  const destroyMsg = destroyedTowers.length
+    ? ` · ${destroyedTowers.length} tour${destroyedTowers.length > 1 ? 's' : ''} rasée${destroyedTowers.length > 1 ? 's' : ''} par la percée`
+    : '';
   UI.toast(
-    `<b>EXTENSION DU SECTEUR</b><br>La carte s'agrandit${addedSpawn ? ' · nouveau point de spawn au sol détecté' : ''}`,
+    `<b>EXTENSION DU SECTEUR</b><br>La carte s'agrandit${spawnMsg}${destroyMsg}`,
     'bad', 3400
   );
 }
@@ -533,18 +560,27 @@ function step(dt) {
     if (game.projectiles[i].dead) game.projectiles.splice(i, 1);
   }
 
-  // Cratères persistants du mortier
-  for (const t of game.towers) {
-    if (t.archetype !== 'mortar' || !t.craters.length) continue;
-    const boost = 1 + (game.mods['mortar.craterDps'] || 0);
-    const baseDps = t.stats.damage * 0.18 * boost;
-    for (const c of t.craters) {
-      // Une zone irradiée (ogive nucléaire) porte ses propres dégâts.
-      const dps = (c.dps !== undefined ? c.dps : baseDps) * (c.dps !== undefined ? boost : 1);
-      for (const e of game.enemies) {
-        if (e.dead || e.air) continue;
-        if ((e.x - c.x) ** 2 + (e.y - c.y) ** 2 <= c.r * c.r) {
-          e.damage(dps * dt, { type: 'burn', silent: true }, game);
+  // Cratères persistants du mortier — dégâts continus invisibles à l'oeil
+  // près, pas besoin d'une précision à 60Hz : on ne fait tourner cette
+  // boucle (tours × cratères × ennemis, potentiellement des milliers de
+  // vérifications avec beaucoup de mortiers et une vague fournie) qu'à
+  // ~15Hz, en reportant le dt accumulé pour garder le même DPS total.
+  game.craterAcc = (game.craterAcc || 0) + dt;
+  if (game.craterAcc >= 1 / 15) {
+    const tickDt = game.craterAcc;
+    game.craterAcc = 0;
+    for (const t of game.towers) {
+      if (t.archetype !== 'mortar' || !t.craters.length) continue;
+      const boost = 1 + (game.mods['mortar.craterDps'] || 0);
+      const baseDps = t.stats.damage * 0.18 * boost;
+      for (const c of t.craters) {
+        // Une zone irradiée (ogive nucléaire) porte ses propres dégâts.
+        const dps = (c.dps !== undefined ? c.dps : baseDps) * (c.dps !== undefined ? boost : 1);
+        for (const e of game.enemies) {
+          if (e.dead || e.air) continue;
+          if ((e.x - c.x) ** 2 + (e.y - c.y) ** 2 <= c.r * c.r) {
+            e.damage(dps * tickDt, { type: 'burn', silent: true }, game);
+          }
         }
       }
     }
@@ -569,6 +605,11 @@ let hudTimer = 0;
 function frame(now) {
   const raw = Math.min(0.1, (now - last) / 1000);
   last = now;
+
+  if (game.hoverDirty) {
+    game.hoverDirty = false;
+    updatePlaceValidity();
+  }
 
   const frozen = game.paused || game.drafting;
   if (game.state === STATE.GAME && !frozen) {
@@ -968,7 +1009,12 @@ function bindGameInputs() {
     const cell = canvasCell(ev);
     game.hover = cell;
     game.hoverTower = cell ? game.grid.towerAt(cell.x, cell.y) : null;
-    updatePlaceValidity();
+    // canPlace() refait un BFS complet sur toute la grille : le mousemove
+    // peut se déclencher bien plus souvent que le rendu (survoler pendant
+    // 1/10s peut envoyer des dizaines d'évènements) — on se contente de
+    // marquer "à vérifier" ici, et frame() ne le recalcule qu'une fois par
+    // image affichée, jamais plus.
+    game.hoverDirty = true;
   });
 
   canvas.addEventListener('mouseleave', () => {

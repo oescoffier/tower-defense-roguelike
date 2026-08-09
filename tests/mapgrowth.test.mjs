@@ -185,16 +185,21 @@ console.log('\n=== CAILLOUX SUR LES NOUVEAUX ANNEAUX ===\n');
 // ============================================================
 console.log('\n=== CHEMINS MULTIPLES PAR SPAWN ===\n');
 {
-  const realRandom = Math.random;
+  const realChance = MAP_GROWTH.spawnChance;
   try {
     GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
     const grid = new Grid(11);
+    grid.grow(); // growthCount=1 : pas de tentative de spawn
+    // growthCount=2 (multiple de spawnEvery) : on force le TIRAGE DE
+    // CHANCE à réussir à coup sûr (spawnChance=1), mais Math.random()
+    // lui-même reste réel — sinon le semis de cailloux ET la boucle de
+    // réparation anti-blocage (qui rouvre des roches AU HASARD tant que
+    // ce n'est pas praticable) tirent toujours le même index et restent
+    // bloqués sur la même case, incapables de vraiment réparer quoi que
+    // ce soit.
+    MAP_GROWTH.spawnChance = 1;
     grid.grow();
-    grid.grow();
-    Math.random = () => 0.01; // force un 2e spawn, isolé de tout semis de cailloux
-    grid._addRingSpawn();
-    Math.random = realRandom;
-    grid.recompute(); // _addRingSpawn() seul ne retrace pas grid.paths (grow() s'en charge normalement)
+    MAP_GROWTH.spawnChance = realChance;
 
     const problems = [];
     if (!grid.paths || grid.paths.length !== grid.spawns.length) {
@@ -212,7 +217,7 @@ console.log('\n=== CHEMINS MULTIPLES PAR SPAWN ===\n');
     if (problems.length) fail(`chemins multiples : ${problems.join(' · ')}`);
     else console.log(`[PASS] ${grid.spawns.length} spawn(s) → ${grid.paths.length} chemin(s) distincts, chacun avec sa propre couleur disponible`);
   } finally {
-    Math.random = realRandom;
+    MAP_GROWTH.spawnChance = realChance;
   }
 }
 
@@ -222,14 +227,17 @@ console.log('\n=== CHEMINS MULTIPLES PAR SPAWN ===\n');
 // ============================================================
 console.log('\n=== RÉPARTITION DES ENNEMIS SUR PLUSIEURS SPAWNS ===\n');
 {
-  const realRandom = Math.random;
+  const realChance = MAP_GROWTH.spawnChance;
   try {
     GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
     const grid = new Grid(9);
+    grid.grow(); // growthCount=1 : pas de tentative de spawn
+    // growthCount=2 : force le tirage de chance à réussir (spawnChance=1)
+    // sans jamais mocker Math.random lui-même — voir le commentaire
+    // détaillé dans "CHEMINS MULTIPLES PAR SPAWN" ci-dessus.
+    MAP_GROWTH.spawnChance = 1;
     grid.grow();
-    Math.random = () => 0.01; // force l'ajout d'un 2e spawn, isolé de tout semis de cailloux
-    grid._addRingSpawn();
-    Math.random = realRandom;
+    MAP_GROWTH.spawnChance = realChance;
 
     if (grid.spawns.length < 2) {
       fail('setup : la grille n\'a toujours qu\'un seul spawn, impossible de tester la répartition');
@@ -249,7 +257,61 @@ console.log('\n=== RÉPARTITION DES ENNEMIS SUR PLUSIEURS SPAWNS ===\n');
       else console.log(`[PASS] 200 ennemis générés, répartis sur ${seen.size}/${grid.spawns.length} points de spawn`);
     }
   } finally {
-    Math.random = realRandom;
+    MAP_GROWTH.spawnChance = realChance;
+  }
+}
+
+// ============================================================
+//  Un nouveau spawn perce le chemin géométriquement le plus court vers la
+//  base, rasant cailloux ET tours sur son passage (voir
+//  Grid._carvePathToBase, appelé depuis grow()).
+// ============================================================
+console.log('\n=== PERÇAGE DU CHEMIN VERS LA BASE (nouveaux spawns) ===\n');
+{
+  GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
+  const grid = new Grid(23);
+  const { x: bx, y: by } = grid.base;
+
+  // Un "spawn" fictif sur la MÊME ligne que la base : la ligne droite est
+  // alors l'UNIQUE chemin le plus court (tout détour serait plus long),
+  // donc le tracé de _carvePathToBase est déterministe et testable.
+  const dir = bx > grid.cols / 2 ? -1 : 1; // s'éloigne vers l'intérieur de la grille
+  const spawnX = bx + dir * 5;
+  if (!grid.inBounds(spawnX, by)) {
+    fail('setup : impossible de placer un spawn fictif sur la même ligne que la base (carte trop petite)');
+  } else {
+    const fakeSpawn = { x: spawnX, y: by };
+    const towerX = bx + dir; // case adjacente à la base, sur la ligne droite : forcément sur le chemin
+    const fakeTower = { id: 'fake-tower' };
+    grid.set(towerX, by, CELL.TOWER);
+    grid.towers[grid.idx(towerX, by)] = fakeTower;
+
+    const destroyed = grid._carvePathToBase(fakeSpawn);
+
+    const problems = [];
+    if (!destroyed.includes(fakeTower)) problems.push('la tour sur le chemin le plus court n\'a pas été détruite');
+    if (grid.cells[grid.idx(towerX, by)] !== CELL.EMPTY) problems.push('la case de la tour détruite n\'est pas repassée à CELL.EMPTY');
+    if (grid.towers[grid.idx(towerX, by)] !== null) problems.push('grid.towers garde encore une référence à la tour détruite');
+    if (problems.length) fail(`perçage du chemin : ${problems.join(' · ')}`);
+    else console.log(`[PASS] une tour posée sur le chemin le plus court entre un nouveau spawn et la base est bien détruite (case libérée)`);
+  }
+
+  // Une tour HORS du chemin le plus court ne doit jamais être touchée.
+  {
+    const grid2 = new Grid(29);
+    const { x: bx2, y: by2 } = grid2.base;
+    const dir2 = bx2 > grid2.cols / 2 ? -1 : 1;
+    const spawnX2 = bx2 + dir2 * 5;
+    if (grid2.inBounds(spawnX2, by2) && grid2.inBounds(bx2, by2 + 1)) {
+      const offPathTower = { id: 'off-path-tower' };
+      // Une case décalée d'une ligne : hors de la ligne droite (seul plus court chemin).
+      grid2.set(bx2 + dir2, by2 + 1, CELL.TOWER);
+      grid2.towers[grid2.idx(bx2 + dir2, by2 + 1)] = offPathTower;
+
+      const destroyed2 = grid2._carvePathToBase({ x: spawnX2, y: by2 });
+      if (destroyed2.includes(offPathTower)) fail('une tour hors du chemin le plus court a été détruite à tort');
+      else console.log('[PASS] une tour hors du chemin le plus court n\'est jamais touchée');
+    }
   }
 }
 

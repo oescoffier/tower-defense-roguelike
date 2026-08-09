@@ -111,6 +111,10 @@ export class Tower {
     s.damage = d.damage * up.damage * (1 + m(mods, `${id}.damage`)) * global;
     s.rate = d.rate * up.rate * (1 + m(mods, `${id}.rate`));
     s.range = d.range * up.range * (1 + m(mods, `${id}.range`));
+    // Zone morte (mortier) : distance minimale en deçà de laquelle un obus
+    // en cloche ne peut pas être tiré. Fixe, pas affectée par les bonus de
+    // portée (une contrainte mécanique, pas une statistique de puissance).
+    s.minRange = d.minRange || 0;
     s.armorPen = m(mods, `${id}.armorPen`);
     s.mask = d.targets;
 
@@ -184,6 +188,7 @@ export class Tower {
 
     this.stats = s;
     this.rangePx = s.range * C;
+    this.rangeMinPx = s.minRange * C;
   }
 
   get dps() {
@@ -242,7 +247,16 @@ export class Tower {
       }
     }
 
-    const inRange = enemiesInRange(game, this.px, this.py, this.rangePx, this.stats.mask);
+    let inRange = enemiesInRange(game, this.px, this.py, this.rangePx, this.stats.mask);
+    // Zone morte (mortier) : une cible trop proche est hors de portée,
+    // exactement comme une trop lointaine.
+    if (this.rangeMinPx > 0) {
+      const minPx2 = this.rangeMinPx * this.rangeMinPx;
+      inRange = inRange.filter((e) => {
+        const dx = e.x - this.px, dy = e.y - this.py;
+        return dx * dx + dy * dy >= minPx2;
+      });
+    }
     const target = selectTarget(game, this, inRange);
     this.target = target;
     this.firing = !!target;
@@ -431,6 +445,20 @@ export class Tower {
       ctx.arc(this.px, this.py, this.rangePx, 0, TAU);
       ctx.stroke();
       ctx.setLineDash([]);
+      // Zone morte (mortier) : un second cercle, plein, marque la zone où
+      // il ne peut PAS tirer — sinon son absence de portée min. y semble
+      // juste être un trou dans le ciblage.
+      if (this.rangeMinPx > 0) {
+        ctx.globalAlpha = (selected ? 0.85 : 0.4) * 0.6;
+        ctx.fillStyle = PALETTE.danger;
+        ctx.beginPath();
+        ctx.arc(this.px, this.py, this.rangeMinPx, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = PALETTE.danger;
+        ctx.beginPath();
+        ctx.arc(this.px, this.py, this.rangeMinPx, 0, TAU);
+        ctx.stroke();
+      }
       if (selected) {
         ctx.globalAlpha = 0.08;
         ctx.fillStyle = accent;

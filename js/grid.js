@@ -20,6 +20,14 @@ export class Grid {
     this.cells = new Uint8Array(this.cols * this.rows);
     this.towers = new Array(this.cols * this.rows).fill(null);
 
+    // Tampons réutilisés par computeDistance() (BFS) : évite de réallouer
+    // deux Int32Array à chaque appel — canPlace() en fait potentiellement
+    // un par image affichée pendant la pose d'une tour, et le filet de
+    // sécurité anti-blocage de generate()/grow() peut en enchaîner des
+    // centaines d'affilée.
+    this._bfsQueue = new Int32Array(this.cols * this.rows);
+    this._distScratch = new Int32Array(this.cols * this.rows);
+
     // Le spawn et la base sont placés par generate() (bord + position aléatoires).
     this.spawn = { x: 0, y: (this.rows >> 1) };
     this.base = { x: this.cols - 1, y: (this.rows >> 1) };
@@ -408,10 +416,9 @@ export class Grid {
   //  valable pour tous les ennemis, où qu'ils se trouvent.
   // ----------------------------------------------------------
   computeDistance(extraBlock = null, out = null) {
-    const n = this.cols * this.rows;
-    const dist = out || new Int32Array(n);
+    const dist = out || this._distScratch;
     dist.fill(-1);
-    const queue = new Int32Array(n);
+    const queue = this._bfsQueue;
     let head = 0, tail = 0;
     const b = this.idx(this.base.x, this.base.y);
     dist[b] = 0;
@@ -570,6 +577,12 @@ export class Grid {
     GRID.cols = newCols;
     GRID.rows = newRows;
 
+    // Les tampons de computeDistance() doivent suivre la nouvelle taille
+    // AVANT le moindre appel (semis de cailloux, ajout de spawn, perçage,
+    // filet de sécurité juste en dessous en dépendent tous).
+    this._bfsQueue = new Int32Array(newCols * newRows);
+    this._distScratch = new Int32Array(newCols * newRows);
+
     this.base = { x: this.base.x + off, y: this.base.y + off };
     this.spawns = this.spawns.map((s) => ({ x: s.x + off, y: s.y + off }));
     this.spawn = this.spawns[0];
@@ -584,9 +597,18 @@ export class Grid {
     const addedSpawn = (this.growthCount % MAP_GROWTH.spawnEvery === 0)
       ? this._addRingSpawn() : null;
 
+    // Un nouveau spawn perce directement le chemin géométriquement le plus
+    // court vers la base — rasant cailloux ET tours sur son passage — au
+    // lieu de laisser la case reliée par un simple détour. Cohérent avec le
+    // reste (une ligne d'ennemis fraîche s'ouvre brutalement dans le
+    // secteur), et ça garantit une vraie voie directe plutôt qu'un chemin
+    // sinueux hérité du filet de sécurité anti-blocage.
+    const destroyedTowers = addedSpawn ? this._carvePathToBase(addedSpawn) : [];
+
     // Garantit qu'un chemin existe toujours vers TOUS les spawns malgré les
     // nouveaux cailloux, en rouvrant des roches au hasard si besoin (même
-    // filet de sécurité que generate()).
+    // filet de sécurité que generate()) — les tours, elles, ne sont jamais
+    // rasées ici : seul le perçage ci-dessus le fait, délibérément.
     let guard = 0;
     while (!this._reachable(null) && guard++ < 600) {
       const i = Math.floor(Math.random() * this.cells.length);
@@ -598,7 +620,72 @@ export class Grid {
     this.recompute();
     this.buildAirPath();
 
-    return { addedSpawn };
+    return { addedSpawn, destroyedTowers };
+  }
+
+  /**
+   * Chemin géométriquement le plus court entre deux cases, EN IGNORANT
+   * tout obstacle (roche ou tour) — sert uniquement à déterminer où percer
+   * quand un nouveau spawn s'ouvre, pas au déplacement des ennemis.
+   */
+  _shortestIgnoringObstacles(fromX, fromY, toX, toY) {
+    const n = this.cols * this.rows;
+    const dist = new Int32Array(n).fill(-1);
+    const prev = new Int32Array(n).fill(-1);
+    const queue = new Int32Array(n);
+    let head = 0, tail = 0;
+    const start = this.idx(fromX, fromY);
+    const target = this.idx(toX, toY);
+    dist[start] = 0;
+    queue[tail++] = start;
+    const DX = [1, -1, 0, 0], DY = [0, 0, 1, -1];
+    while (head < tail) {
+      const cur = queue[head++];
+      if (cur === target) break;
+      const cx = cur % this.cols, cy = (cur / this.cols) | 0;
+      for (let d = 0; d < 4; d++) {
+        const nx = cx + DX[d], ny = cy + DY[d];
+        if (!this.inBounds(nx, ny)) continue;
+        const ni = ny * this.cols + nx;
+        if (dist[ni] !== -1) continue;
+        dist[ni] = dist[cur] + 1;
+        prev[ni] = cur;
+        queue[tail++] = ni;
+      }
+    }
+    if (dist[target] === -1) return [];
+    const path = [];
+    let cur = target;
+    while (cur !== -1) {
+      path.push({ x: cur % this.cols, y: (cur / this.cols) | 0 });
+      if (cur === start) break;
+      cur = prev[cur];
+    }
+    return path.reverse();
+  }
+
+  /**
+   * Perce le chemin le plus court entre `spawn` et la base : rase les
+   * cailloux et retire les tours qui s'y trouvent. Retourne les tours
+   * détruites (objets Tower), pour que l'appelant (main.js, qui possède
+   * game.towers) les retire de sa propre liste, affiche un retour visuel,
+   * etc. — Grid ne connaît pas game.towers.
+   */
+  _carvePathToBase(spawn) {
+    const path = this._shortestIgnoringObstacles(spawn.x, spawn.y, this.base.x, this.base.y);
+    const destroyed = [];
+    for (const c of path) {
+      if ((c.x === spawn.x && c.y === spawn.y) || (c.x === this.base.x && c.y === this.base.y)) continue;
+      const i = this.idx(c.x, c.y);
+      if (this.cells[i] === CELL.TOWER) {
+        if (this.towers[i]) destroyed.push(this.towers[i]);
+        this.towers[i] = null;
+        this.cells[i] = CELL.EMPTY;
+      } else if (this.cells[i] === CELL.ROCK) {
+        this.cells[i] = CELL.EMPTY;
+      }
+    }
+    return destroyed;
   }
 
   /**

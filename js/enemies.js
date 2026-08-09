@@ -33,6 +33,11 @@ export class Enemy {
     this.maxShield = def.shield ? Math.round(def.shield * (mods.hpMult || 1)) : 0;
     this.shield = this.maxShield;
     this.shieldTimer = 0;
+    // Plaque réactive : aucun coup unique ne peut jamais retirer plus que
+    // cette fraction des PV max, quels que soient les dégâts bruts. Un
+    // vrai mur contre le burst à un coup (crit, exécution, obus) — la
+    // seule vraie parade est le DPS soutenu (plusieurs coups distincts).
+    this.hitCap = def.hitCap ? def.hitCap * this.maxHp : Infinity;
 
     this.dead = false;
     this.leaked = false;
@@ -271,6 +276,11 @@ export class Enemy {
         dmg = 0;
       }
     }
+
+    // Plaque réactive (hitCap) : appliquée après le bouclier, sur ce qui
+    // atteint réellement les PV — un coup gigantesque (exécution, obus,
+    // critique) ne peut jamais dépasser ce plafond en une seule fois.
+    if (dmg > this.hitCap) dmg = this.hitCap;
 
     if (dmg <= 0) {
       this.hitFlash = 0.5;

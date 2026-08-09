@@ -269,7 +269,10 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
 
-    // Chevrons de direction
+    // Chevrons de direction — points calculés directement (cos/sin) plutôt
+    // que save()/translate()/rotate()/restore() par chevron : même rendu,
+    // sans les allers-retours sur la pile d'état du contexte (ce chemin est
+    // retracé en entier à chaque image, pour chaque spawn).
     ctx.globalAlpha = 0.85;
     ctx.strokeStyle = color;
     ctx.lineWidth = 2.4;
@@ -281,13 +284,13 @@ export class Renderer {
       const bx = grid.cx(b.x), by = grid.cy(b.y);
       const ang = Math.atan2(by - ay, bx - ax);
       const mx = ax + (bx - ax) * 0.5, my = ay + (by - ay) * 0.5;
-      ctx.save();
-      ctx.translate(mx, my);
-      ctx.rotate(ang);
+      const cosA = Math.cos(ang), sinA = Math.sin(ang);
+      const p1x = mx + (-5) * cosA - (-5) * sinA, p1y = my + (-5) * sinA + (-5) * cosA;
+      const p2x = mx + 4 * cosA, p2y = my + 4 * sinA;
+      const p3x = mx + (-5) * cosA - 5 * sinA, p3y = my + (-5) * sinA + 5 * cosA;
       ctx.beginPath();
-      ctx.moveTo(-5, -5); ctx.lineTo(4, 0); ctx.lineTo(-5, 5);
+      ctx.moveTo(p1x, p1y); ctx.lineTo(p2x, p2y); ctx.lineTo(p3x, p3y);
       ctx.stroke();
-      ctx.restore();
     }
     ctx.globalAlpha = 1;
     ctx.restore();

@@ -175,7 +175,13 @@ function fireTest(id) {
   game.towers.push(tower);
 
   const isAir = def.targets === TARGET.AIR;
-  const enemy = makeEnemy(game, isAir ? 'bomber' : 'juggernaut', tower.px + 50, tower.py);
+  // Place la cible à 60% de l'intervalle [portée min, portée max] de la
+  // tour : reste dans la zone morte du mortier serait une portée nulle à
+  // tort, et une position fixe en pixels ne veut plus rien dire depuis que
+  // les portées varient énormément d'une tour à l'autre (mitrailleuse 2
+  // cases, sniper 4, DCA 3...).
+  const dist = tower.rangeMinPx + (tower.rangePx - tower.rangeMinPx) * 0.6;
+  const enemy = makeEnemy(game, isAir ? 'bomber' : 'juggernaut', tower.px + dist, tower.py);
 
   const startHp = enemy.hp;
   let t = 0;
@@ -184,7 +190,7 @@ function fireTest(id) {
     for (const p of game.projectiles) p.update(DT, game);
     game.projectiles = game.projectiles.filter((p) => !p.dead);
     enemy.update(DT, game);
-    enemy.x = tower.px + 50; enemy.y = tower.py;
+    enemy.x = tower.px + dist; enemy.y = tower.py;
     game.time += DT;
     t += DT;
   }

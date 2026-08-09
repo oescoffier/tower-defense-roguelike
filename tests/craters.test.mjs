@@ -32,7 +32,8 @@ const mortar = new Tower('mortar', sx, sy, game);
 game.towers.push(mortar);
 
 const enemy = new Enemy('juggernaut', game.grid, {});
-enemy.x = mortar.px + 60; enemy.y = mortar.py;
+const dist = mortar.rangeMinPx + (mortar.rangePx - mortar.rangeMinPx) * 0.5; // dans la fenêtre de tir, pas la zone morte
+enemy.x = mortar.px + dist; enemy.y = mortar.py;
 game.enemies.push(enemy);
 
 const DT = 1 / 60;
@@ -42,7 +43,7 @@ for (let t = 0; t < 20; t += DT) {
   mortar.update(DT, game);
   for (const p of game.projectiles) p.update(DT, game);
   game.projectiles = game.projectiles.filter((p) => !p.dead);
-  enemy.x = mortar.px + 60; enemy.y = mortar.py;
+  enemy.x = mortar.px + dist; enemy.y = mortar.py;
   game.time += DT;
 }
 
