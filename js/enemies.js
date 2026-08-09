@@ -61,12 +61,22 @@ export class Enemy {
     // Déplacement
     if (this.air) {
       this.travel = 0;
-      const p = grid.airAt(0);
+      // Chaque aérien tire au sort SA voie parmi celles disponibles — comme
+      // le sol pioche un spawn au hasard dans grid.spawns[] — SAUF si une
+      // voie précise est imposée (mods.lane, voir buildWave/WaveRunner :
+      // une vague joue le même motif sur CHAQUE voie, pas une répartition
+      // aléatoire). grid.grow() peut ouvrir de nouvelles voies au fil de la
+      // partie, sans plafond.
+      const lanes = grid.airLanes || [0];
+      this.airLane = (mods.lane !== undefined && mods.lane < lanes.length)
+        ? mods.lane : Math.floor(Math.random() * lanes.length);
+      const p = grid.airAt(this.airLane, 0);
       this.x = p.x; this.y = p.y; this.angle = p.a;
       this.bob = Math.random() * Math.PI * 2;
     } else {
       const spawns = grid.spawns || [grid.spawn];
-      const sp = spawns[Math.floor(Math.random() * spawns.length)];
+      const sp = (mods.lane !== undefined && mods.lane < spawns.length)
+        ? spawns[mods.lane] : spawns[Math.floor(Math.random() * spawns.length)];
       // _px/_py : position "logique" qui suit le flow field au centre du
       // couloir (utilisée pour tout le pathing). x/y (publiques, lues par
       // le rendu et le combat) y ajoutent un décalage latéral fixe pour que
@@ -197,12 +207,13 @@ export class Enemy {
 
   _moveAir(dt, game, speed) {
     const g = this.grid;
+    const lane = g.airLanes[this.airLane] || g.airLanes[0];
     this.travel += speed * g.cell * dt;
-    if (this.travel >= g.airLength) {
+    if (this.travel >= lane.length) {
       this.leakOut(game);
       return;
     }
-    const p = g.airAt(this.travel);
+    const p = g.airAt(this.airLane, this.travel);
     this.bob += dt * 6;
     this.x = p.x;
     this.y = p.y + Math.sin(this.bob) * 3;

@@ -43,6 +43,14 @@ export class Grid {
     // d'origine), grow() peut en ajouter d'autres sur les anneaux extérieurs.
     this.spawns = [this.spawn];
 
+    // Liste des voies aériennes : la première reprend le tirage initial
+    // (airEdge/airFrac/airBowSign), grow() peut en ajouter d'autres,
+    // chacune avec son propre bord d'entrée. Chaque entrée ne garde que
+    // les PARAMÈTRES (edge/frac/bowSign) — la géométrie (pts/cum/length)
+    // est calculée à part par buildAirPath(), qui doit de toute façon tout
+    // recalculer après un grow() puisque les dimensions changent.
+    this.airLanes = [{ edge: this.airEdge, frac: this.airFrac, bowSign: this.airBowSign }];
+
     // Champ de distance BFS (distance en cases jusqu'à la base) + chemin de référence
     this.dist = new Int32Array(this.cols * this.rows).fill(-1);
     this.flow = new Int8Array(this.cols * this.rows * 2); // direction vers la base
@@ -597,6 +605,13 @@ export class Grid {
     const addedSpawn = (this.growthCount % MAP_GROWTH.spawnEvery === 0)
       ? this._addRingSpawn() : null;
 
+    // Une nouvelle voie aérienne suit son propre cycle (voir MAP_GROWTH) —
+    // aucun lien géométrique avec le sol, donc aucun décalage de coordonnées
+    // à faire ici (buildAirPath(), plus bas, recalcule tout depuis les
+    // dimensions et la base à jour).
+    const addedAirLane = (this.growthCount % MAP_GROWTH.airLaneEvery === 0)
+      ? this._addAirLane() : null;
+
     // Un nouveau spawn perce directement le chemin géométriquement le plus
     // court vers la base — rasant cailloux ET tours sur son passage — au
     // lieu de laisser la case reliée par un simple détour. Cohérent avec le
@@ -620,7 +635,7 @@ export class Grid {
     this.recompute();
     this.buildAirPath();
 
-    return { addedSpawn, destroyedTowers };
+    return { addedSpawn, addedAirLane, destroyedTowers };
   }
 
   /**
@@ -720,11 +735,9 @@ export class Grid {
 
   /**
    * Avec une chance à chaque extension, ouvre un nouveau point de spawn
-   * au sol sur l'anneau tout juste ajouté — plafonné pour ne pas non plus
-   * étaler les défenses à l'infini.
+   * au sol sur l'anneau tout juste ajouté — sans plafond.
    */
   _addRingSpawn() {
-    if (this.spawns.length >= MAP_GROWTH.maxSpawns) return null;
     if (Math.random() >= MAP_GROWTH.spawnChance) return null;
 
     const taken = new Set(this.spawns.map((s) => `${s.x},${s.y}`));
@@ -759,24 +772,56 @@ export class Grid {
     return pick;
   }
 
+  /**
+   * Avec une chance à chaque extension, ouvre une nouvelle voie aérienne —
+   * un bord d'entrée (jamais celui de la base), une fraction le long de ce
+   * bord et un sens de courbure, tous tirés au hasard comme la voie
+   * d'origine (_pickAirEntry). Sans plafond, comme les spawns au sol.
+   */
+  _addAirLane() {
+    if (Math.random() >= MAP_GROWTH.airLaneChance) return null;
+
+    const candidates = [0, 1, 2, 3].filter((e) => e !== this.baseEdge);
+    const lane = {
+      edge: candidates[Math.floor(Math.random() * candidates.length)],
+      frac: 0.12 + Math.random() * 0.76,
+      bowSign: Math.random() < 0.5 ? 1 : -1
+    };
+    this.airLanes.push(lane);
+    return lane;
+  }
+
   // ----------------------------------------------------------
-  //  Chemin aérien — courbe fixe, insensible aux obstacles et non
-  //  modifiable par le joueur. Indépendant du spawn au sol : les ennemis
-  //  volants entrent par le bord le plus éloigné de la base (choisi en
+  //  Chemin aérien — courbes fixes, insensibles aux obstacles et non
+  //  modifiables par le joueur. Indépendantes du spawn au sol : les
+  //  ennemis volants entrent par un bord éloigné de la base (choisi en
   //  amont par _pickAirEntry), pour garantir une traversée toujours assez
-  //  longue, puis rejoignent la base par une courbe en S.
+  //  longue, puis rejoignent la base par une courbe en S. Plusieurs voies
+  //  peuvent coexister (this.airLanes) — grow() peut en ouvrir d'autres,
+  //  comme pour les spawns au sol.
   // ----------------------------------------------------------
   buildAirPath() {
+    for (const lane of this.airLanes) this._buildLaneGeometry(lane);
+    // Alias vers la première voie : compatibilité avec le code qui ne
+    // connaît qu'un seul chemin aérien (décor du menu, anciens appels).
+    const first = this.airLanes[0];
+    this.airPath = first.pts;
+    this.airCum = first.cum;
+    this.airLength = first.length;
+  }
+
+  /** Calcule pts/cum/length d'une voie aérienne à partir de ses paramètres (edge/frac/bowSign). */
+  _buildLaneGeometry(lane) {
     const end = { x: this.cx(this.base.x), y: this.cy(this.base.y) };
-    const entry = this._edgePixelPoint(this.airEdge, this.airFrac);
-    const out = this._outwardDir(this.airEdge);
+    const entry = this._edgePixelPoint(lane.edge, lane.frac);
+    const out = this._outwardDir(lane.edge);
     const overshoot = 110; // marge hors-champ avant l'entrée dans la zone visible
     const start = { x: entry.x + out.x * overshoot, y: entry.y + out.y * overshoot };
 
     const dx = end.x - start.x, dy = end.y - start.y;
     const len = Math.hypot(dx, dy) || 1;
     const px = -dy / len, py = dx / len; // perpendiculaire unitaire
-    const bow = Math.min(GRID.w, GRID.h) * 0.32 * (this.airBowSign || 1);
+    const bow = Math.min(GRID.w, GRID.h) * 0.32 * (lane.bowSign || 1);
     const c1 = { x: start.x + dx * 0.3 + px * bow, y: start.y + dy * 0.3 + py * bow };
     const c2 = { x: start.x + dx * 0.7 - px * bow, y: start.y + dy * 0.7 - py * bow };
 
@@ -794,16 +839,17 @@ export class Grid {
     for (let i = 1; i < pts.length; i++) {
       cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
     }
-    this.airPath = pts;
-    this.airCum = cum;
-    this.airLength = cum[cum.length - 1];
+    lane.pts = pts;
+    lane.cum = cum;
+    lane.length = cum[cum.length - 1];
   }
 
-  /** Position sur le chemin aérien à la distance d (px). */
-  airAt(d) {
-    const cum = this.airCum, pts = this.airPath;
+  /** Position sur la voie aérienne `laneIndex`, à la distance d (px) depuis son entrée. */
+  airAt(laneIndex, d) {
+    const lane = this.airLanes[laneIndex] || this.airLanes[0];
+    const cum = lane.cum, pts = lane.pts;
     if (d <= 0) return { x: pts[0].x, y: pts[0].y, a: 0 };
-    if (d >= this.airLength) {
+    if (d >= lane.length) {
       const p = pts[pts.length - 1], q = pts[pts.length - 2];
       return { x: p.x, y: p.y, a: Math.atan2(p.y - q.y, p.x - q.x) };
     }

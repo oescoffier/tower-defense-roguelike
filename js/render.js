@@ -296,10 +296,17 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Chemin aérien : courbe fixe, pointillés bleus flottants. */
+  /** Chemins aériens : une courbe fixe par voie, pointillés bleus flottants. */
   _drawAirPath(ctx, game, t) {
     const grid = game.grid;
-    const pts = grid.airPath;
+    for (let i = 0; i < grid.airLanes.length; i++) {
+      this._drawOneAirLane(ctx, grid, i, t);
+    }
+  }
+
+  _drawOneAirLane(ctx, grid, laneIndex, t) {
+    const lane = grid.airLanes[laneIndex];
+    const pts = lane.pts;
     ctx.save();
 
     ctx.strokeStyle = PALETTE.air;
@@ -324,8 +331,8 @@ export class Renderer {
     ctx.globalAlpha = 0.75;
     ctx.fillStyle = PALETTE.air;
     for (let k = 0; k < 4; k++) {
-      const d = ((t * 130 + k * grid.airLength / 4) % grid.airLength);
-      const p = grid.airAt(d);
+      const d = ((t * 130 + k * lane.length / 4) % lane.length);
+      const p = grid.airAt(laneIndex, d);
       ctx.beginPath();
       ctx.arc(p.x, p.y, 2.6, 0, TAU);
       ctx.fill();

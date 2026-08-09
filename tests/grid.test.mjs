@@ -72,7 +72,7 @@ for (let seed = 1; seed <= N; seed++) {
   if (!(g.airLength > 0) || !Number.isFinite(g.airLength)) {
     fails++; console.log(`[FAIL] seed ${seed}: airLength invalide (${g.airLength})`);
   } else {
-    const p0 = g.airAt(0), pEnd = g.airAt(g.airLength);
+    const p0 = g.airAt(0, 0), pEnd = g.airAt(0, g.airLength);
     if (![p0.x, p0.y, pEnd.x, pEnd.y].every(Number.isFinite)) {
       fails++; console.log(`[FAIL] seed ${seed}: points du chemin aérien non finis`);
     }

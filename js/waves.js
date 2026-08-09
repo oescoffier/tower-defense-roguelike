@@ -34,14 +34,49 @@ function weightFor(id, wave) {
   }
 }
 
+/** Construit un seul motif temporisé [{type, at}] totalisant `budget` ennemis, pris dans `pool`. */
+function buildPattern(rng, pool, budget, gap) {
+  const pattern = [];
+  let remaining = budget, t = 0;
+  while (remaining > 0 && pool.length) {
+    const pick = rng.weighted(pool);
+    const def = ENEMIES[pick.id];
+    if (def.packSize) {
+      // Un essaim arrive en paquet serré
+      const n = Math.min(remaining, def.packSize);
+      for (let i = 0; i < n; i++) pattern.push({ type: pick.id, at: t + i * 0.09 });
+      remaining -= n;
+      t += gap * 1.4;
+    } else {
+      pattern.push({ type: pick.id, at: t });
+      remaining--;
+      t += gap * rng.float(0.75, 1.25);
+    }
+  }
+  return pattern;
+}
+
 /**
  * Construit la liste ordonnée des spawns d'une vague.
- * Retourne [{type, at}] où `at` est le temps (s) depuis le début de la vague.
+ *
+ * `waveCount(wave)` (× airRatio pour l'air) est un budget PAR VOIE, pas un
+ * total à répartir : un seul motif temporisé est généré pour le sol et un
+ * pour l'air, puis chacun est rejoué intégralement sur CHAQUE voie
+ * correspondante (`groundLanes` points de spawn au sol, `airLanes` voies
+ * aériennes — voir Grid.spawns / Grid.airLanes, tous deux sans plafond et
+ * pouvant croître avec Grid.grow()). Plus il y a de voies ouvertes, plus le
+ * nombre total d'ennemis d'une vague grandit en conséquence — le nombre
+ * "annoncé" reste celui d'UNE SEULE voie.
+ *
+ * Retourne [{type, at, lane, air}] où `at` est le temps (s) depuis le
+ * début de la vague et `lane` l'index dans grid.spawns (sol) ou
+ * grid.airLanes (air) d'où l'ennemi doit apparaître.
  */
-export function buildWave(wave) {
+export function buildWave(wave, groundLanes = 1, airLanes = 1) {
   const rng = new Rng(0x5EED ^ (wave * 2654435761));
-  const total = waveCount(wave);
+  const perLane = waveCount(wave);
   const airRatio = waveAirRatio(wave);
+  const airPerLane = Math.round(perLane * airRatio);
 
   const groundPool = GROUND_POOL
     .map((id) => ({ id, w: weightFor(id, wave) }))
@@ -50,59 +85,42 @@ export function buildWave(wave) {
     .map((id) => ({ id, w: weightFor(id, wave) }))
     .filter((o) => o.w > 0);
 
-  const spawns = [];
-  let t = 0;
   const gap = Math.max(WAVE.spawnGapMin, WAVE.spawnGap - wave * 0.012);
+  const groundLaneCount = Math.max(1, groundLanes);
+  const airLaneCount = airPool.length ? Math.max(1, airLanes) : 0;
 
-  // --- Boss ---
-  const bossGround = wave % WAVE.bossGroundEvery === 0;
-  const bossAir = wave % WAVE.bossAirEvery === 0;
+  const groundPattern = buildPattern(rng, groundPool, perLane, gap);
+  const airPattern = airLaneCount ? buildPattern(rng, airPool, airPerLane, gap) : [];
 
-  let remaining = total;
-  let airBudget = Math.round(total * airRatio);
-  if (!airPool.length) airBudget = 0;
-
-  while (remaining > 0) {
-    const wantAir = airBudget > 0 && (rng.next() < 0.45 || remaining <= airBudget);
-    if (wantAir && airPool.length) {
-      const pick = rng.weighted(airPool);
-      const adef = ENEMIES[pick.id];
-      if (adef.packSize) {
-        // Essaim aérien : arrive groupé, comme un essaim au sol.
-        const n = Math.min(remaining, adef.packSize);
-        for (let i = 0; i < n; i++) {
-          spawns.push({ type: pick.id, at: t + i * 0.09 });
-        }
-        remaining -= n; airBudget -= n;
-        t += gap * 1.4;
-      } else {
-        spawns.push({ type: pick.id, at: t });
-        airBudget--; remaining--;
-        t += gap * rng.float(0.75, 1.25);
-      }
-    } else if (groundPool.length) {
-      const pick = rng.weighted(groundPool);
-      const def = ENEMIES[pick.id];
-      if (def.packSize) {
-        // Un essaim arrive en paquet serré
-        const n = Math.min(remaining, def.packSize);
-        for (let i = 0; i < n; i++) {
-          spawns.push({ type: pick.id, at: t + i * 0.09 });
-        }
-        remaining -= n;
-        t += gap * 1.4;
-      } else {
-        spawns.push({ type: pick.id, at: t });
-        remaining--;
-        t += gap * rng.float(0.75, 1.25);
-      }
-    } else {
-      remaining = 0;
-    }
+  // Réplication sur chaque voie — léger décalage temporel (hors voie 0)
+  // pour ne pas synchroniser parfaitement toutes les voies image par image.
+  const spawns = [];
+  for (let lane = 0; lane < groundLaneCount; lane++) {
+    const jitter = lane === 0 ? 0 : rng.float(-0.3, 0.3);
+    for (const s of groundPattern) spawns.push({ type: s.type, at: Math.max(0, s.at + jitter), lane, air: false });
+  }
+  for (let lane = 0; lane < airLaneCount; lane++) {
+    const jitter = lane === 0 ? 0 : rng.float(-0.3, 0.3);
+    for (const s of airPattern) spawns.push({ type: s.type, at: Math.max(0, s.at + jitter), lane, air: true });
   }
 
-  if (bossGround) spawns.push({ type: 'juggernaut', at: Math.max(1.5, t * 0.35), boss: true });
-  if (bossAir) spawns.push({ type: 'raptor', at: Math.max(2.5, t * 0.55), boss: true });
+  // --- Boss : une seule fois par vague, jamais répliqué par voie ---
+  const bossGround = wave % WAVE.bossGroundEvery === 0;
+  const bossAir = wave % WAVE.bossAirEvery === 0 && airLaneCount > 0;
+  const lastGroundT = groundPattern.length ? groundPattern[groundPattern.length - 1].at : 0;
+  const lastAirT = airPattern.length ? airPattern[airPattern.length - 1].at : 0;
+  if (bossGround) {
+    spawns.push({
+      type: 'juggernaut', at: Math.max(1.5, lastGroundT * 0.35), boss: true,
+      lane: rng.int(0, groundLaneCount - 1), air: false
+    });
+  }
+  if (bossAir) {
+    spawns.push({
+      type: 'raptor', at: Math.max(2.5, lastAirT * 0.55), boss: true,
+      lane: rng.int(0, airLaneCount - 1), air: true
+    });
+  }
 
   spawns.sort((a, b) => a.at - b.at);
 
@@ -113,7 +131,10 @@ export function buildWave(wave) {
     hpMult: waveHpMult(wave),
     speedMult: 1 + WAVE.speedGrowth * (wave - 1),
     airRatio,
-    hasBoss: bossGround || bossAir
+    hasBoss: bossGround || bossAir,
+    groundLanes: groundLaneCount,
+    airLanes: airLaneCount,
+    perLane
   };
 }
 

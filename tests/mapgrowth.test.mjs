@@ -5,7 +5,7 @@
 //  (Grid.grow() : +1 case tout autour toutes les MAP_GROWTH.every
 //  vagues, avec de nouveaux points de spawn possibles sur l'anneau).
 // ============================================================
-import { GRID, CELL, MAP_GROWTH, PALETTE, waveCount, waveLeakMult } from '../js/config.js';
+import { GRID, CELL, MAP_GROWTH, waveCount, waveLeakMult } from '../js/config.js';
 import { Grid } from '../js/grid.js';
 import { Enemy } from '../js/enemies.js';
 
@@ -78,10 +78,68 @@ console.log('\n=== CYCLES SUCCESSIFS D\'EXTENSION ===\n');
     if (grid.cols !== ORIG_COLS + i * 2 || grid.rows !== ORIG_ROWS + i * 2) {
       fail(`cycle ${i} : dimensions incohérentes (${grid.cols}x${grid.rows})`); ok = false; break;
     }
-    if (grid.spawns.length > MAP_GROWTH.maxSpawns) { fail(`cycle ${i} : ${grid.spawns.length} spawns, dépasse le plafond ${MAP_GROWTH.maxSpawns}`); ok = false; break; }
   }
   if (ok) {
     console.log(`[PASS] ${CYCLES} extensions d'affilée : carte finale ${grid.cols}x${grid.rows}, ${grid.spawns.length} point(s) de spawn, toujours praticable`);
+  }
+}
+
+// ============================================================
+//  Aucun plafond au nombre de spawns au sol : sur assez de cycles avec
+//  une chance forcée à 1, le nombre de spawns continue de grimper au-delà
+//  de l'ancien plafond (5), preuve qu'il n'existe plus.
+// ============================================================
+console.log('\n=== AUCUN PLAFOND SUR LE NOMBRE DE SPAWNS AU SOL ===\n');
+{
+  GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
+  const grid = new Grid(13);
+  const realSpawnEvery = MAP_GROWTH.spawnEvery, realChance = MAP_GROWTH.spawnChance;
+  try {
+    MAP_GROWTH.spawnEvery = 1;
+    MAP_GROWTH.spawnChance = 1;
+    for (let i = 0; i < 8; i++) grid.grow();
+    if (grid.spawns.length <= 5) {
+      fail(`${grid.spawns.length} spawn(s) après 8 extensions à chance=1 — l'ancien plafond (5) semble toujours actif`);
+    } else {
+      console.log(`[PASS] ${grid.spawns.length} spawns après 8 extensions à chance garantie — plus de plafond`);
+    }
+  } finally {
+    MAP_GROWTH.spawnEvery = realSpawnEvery;
+    MAP_GROWTH.spawnChance = realChance;
+  }
+}
+
+// ============================================================
+//  Voies aériennes multiples : comme pour le sol, de nouvelles voies
+//  peuvent s'ouvrir au fil des extensions, sans plafond.
+// ============================================================
+console.log('\n=== NOUVELLES VOIES AÉRIENNES (Grid._addAirLane / grow) ===\n');
+{
+  GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
+  const grid = new Grid(19);
+  const before = grid.airLanes.length;
+  if (before !== 1) fail(`une grille fraîche devrait avoir exactement 1 voie aérienne, en a ${before}`);
+
+  const realEvery = MAP_GROWTH.airLaneEvery, realChance = MAP_GROWTH.airLaneChance;
+  try {
+    MAP_GROWTH.airLaneEvery = 1;
+    MAP_GROWTH.airLaneChance = 1;
+    for (let i = 0; i < 6; i++) grid.grow();
+    if (grid.airLanes.length <= before) {
+      fail(`toujours ${grid.airLanes.length} voie(s) aérienne(s) après 6 extensions à chance garantie — _addAirLane() ne fonctionne pas`);
+    } else {
+      const problems = [];
+      for (const lane of grid.airLanes) {
+        if (!lane.pts || lane.pts.length < 2) problems.push('une voie a une géométrie vide ou trop courte');
+        if (!(lane.length > 0)) problems.push(`une voie a une longueur invalide (${lane.length})`);
+        if (lane.edge === grid.baseEdge) problems.push('une voie entre par le même bord que la base');
+      }
+      if (problems.length) fail(`voies aériennes : ${problems.join(' · ')}`);
+      else console.log(`[PASS] ${grid.airLanes.length} voies aériennes après 6 extensions à chance garantie, chacune avec une géométrie valide, aucun plafond`);
+    }
+  } finally {
+    MAP_GROWTH.airLaneEvery = realEvery;
+    MAP_GROWTH.airLaneChance = realChance;
   }
 }
 
@@ -211,11 +269,11 @@ console.log('\n=== CHEMINS MULTIPLES PAR SPAWN ===\n');
         else if (p[0].x !== grid.spawns[i].x || p[0].y !== grid.spawns[i].y) problems.push(`spawn #${i} : le chemin ne part pas de son propre spawn`);
       }
     }
-    if (PALETTE.pathColors.length < MAP_GROWTH.maxSpawns) {
-      problems.push(`seulement ${PALETTE.pathColors.length} couleurs pour jusqu'à ${MAP_GROWTH.maxSpawns} spawns possibles`);
-    }
+    // Le rendu (render.js) fait cycler PALETTE.pathColors par modulo — un
+    // nombre de spawns supérieur au nombre de couleurs répète juste des
+    // couleurs, ce qui est un choix de rendu valide, pas un plafond ici.
     if (problems.length) fail(`chemins multiples : ${problems.join(' · ')}`);
-    else console.log(`[PASS] ${grid.spawns.length} spawn(s) → ${grid.paths.length} chemin(s) distincts, chacun avec sa propre couleur disponible`);
+    else console.log(`[PASS] ${grid.spawns.length} spawn(s) → ${grid.paths.length} chemin(s) distincts`);
   } finally {
     MAP_GROWTH.spawnChance = realChance;
   }

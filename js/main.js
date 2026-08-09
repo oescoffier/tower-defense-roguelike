@@ -327,7 +327,8 @@ function startRun(opts = {}) {
 }
 
 function prepareNextWave() {
-  game.waveData = game.tutorial ? game.tutorial.waveFor() : buildWave(game.wave + 1);
+  game.waveData = game.tutorial ? game.tutorial.waveFor()
+    : buildWave(game.wave + 1, game.grid.spawns.length, game.grid.airLanes.length);
   UI.renderWaveComp(game.waveData, waveSummary(game.waveData));
 }
 
@@ -336,7 +337,8 @@ function startWave() {
   // En entraînement, la vague n'est disponible que quand l'étape l'attend.
   if (game.tutorial && !game.tutorial.canStartWave()) return;
   game.wave++;
-  game.waveData = game.tutorial ? game.tutorial.waveFor() : buildWave(game.wave);
+  game.waveData = game.tutorial ? game.tutorial.waveFor()
+    : buildWave(game.wave, game.grid.spawns.length, game.grid.airLanes.length);
   game.waveRunner = new WaveRunner(game.waveData);
   game.waveRunning = true;
   game.autoLeft = 0;
@@ -376,7 +378,7 @@ function startWave() {
 function growMap() {
   const grid = game.grid;
   const off = grid.cell;
-  const { addedSpawn, destroyedTowers } = grid.grow();
+  const { addedSpawn, addedAirLane, destroyedTowers } = grid.grow();
 
   // Un nouveau spawn perce le chemin le plus court vers la base à travers
   // tout ce qui s'y trouve, tours comprises (voir Grid._carvePathToBase).
@@ -428,11 +430,12 @@ function growMap() {
   game.vfx.addFlash(0.2, PALETTE.accent);
   game.vfx.floatText(b.cx(b.base.x), b.cy(b.base.y) - 50, 'SECTEUR ÉTENDU', PALETTE.accent, 18, 1.4);
   const spawnMsg = addedSpawn ? ' · nouveau point de spawn au sol détecté' : '';
+  const airMsg = addedAirLane ? ' · nouvelle voie aérienne détectée' : '';
   const destroyMsg = destroyedTowers.length
     ? ` · ${destroyedTowers.length} tour${destroyedTowers.length > 1 ? 's' : ''} rasée${destroyedTowers.length > 1 ? 's' : ''} par la percée`
     : '';
   UI.toast(
-    `<b>EXTENSION DU SECTEUR</b><br>La carte s'agrandit${spawnMsg}${destroyMsg}`,
+    `<b>EXTENSION DU SECTEUR</b><br>La carte s'agrandit${spawnMsg}${airMsg}${destroyMsg}`,
     'bad', 3400
   );
 }
@@ -553,7 +556,8 @@ function step(dt) {
         const e = new Enemy(s.type, game.grid, {
           hpMult: game.waveData.hpMult,
           speedMult: game.waveData.speedMult,
-          goldMult: 1 + game.wave * 0.02
+          goldMult: 1 + game.wave * 0.02,
+          lane: s.lane
         });
         game.enemies.push(e);
         if (e.boss) {

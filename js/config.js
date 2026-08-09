@@ -44,14 +44,22 @@ export const GRID = {
 // nouveau point de spawn au sol sur l'anneau fraîchement ajouté.
 export const MAP_GROWTH = {
   every: 10,
-  maxSpawns: 5,
   // Un nouveau spawn n'est même TENTÉ qu'une extension sur `spawnEvery`
   // (donc toutes les 20 vagues, pas 10) et avec cette chance-là seulement :
-  // ce n'est jamais garanti à chaque agrandissement.
+  // ce n'est jamais garanti à chaque agrandissement, et SANS PLAFOND — sur
+  // une partie assez longue, autant de points de spawn au sol peuvent
+  // s'ouvrir.
   spawnEvery: 2,
   spawnChance: 0.4,
-  // Un nouveau spawn trop près de la base laisserait à peine le temps de
-  // réagir : distance minimale (en cases) exigée entre les deux.
+  // Une nouvelle voie aérienne suit exactement la même logique (cycle +
+  // chance propres, jamais garantie, jamais plafonnée) — voir
+  // Grid._addAirLane(). Décalée d'une extension par rapport au sol
+  // (spawnEvery vs airLaneEvery calés sur growthCount, pas alignés) pour
+  // qu'un même agrandissement n'ouvre pas les deux à la fois.
+  airLaneEvery: 3,
+  airLaneChance: 0.4,
+  // Un nouveau spawn (sol ou air) trop près de la base laisserait à peine
+  // le temps de réagir : distance minimale (en cases) exigée entre les deux.
   minSpawnDistFromBase: 7,
   // Cailloux de l'anneau fraîchement ajouté par grow() : posés par
   // tronçons courts séparés de passages nets (voir Grid._scatterRingRocks),

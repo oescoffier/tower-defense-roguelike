@@ -20,6 +20,7 @@
     "test:explosions": "node tests/explosions.test.mjs",
     "test:meteor": "node tests/meteor.test.mjs",
     "test:vfxtoggle": "node tests/vfxtoggle.test.mjs",
-    "test": "npm run test:commanders && npm run test:grid && npm run test:craters && npm run test:variants && npm run test:antistun && npm run test:cards && npm run test:mapgrowth && npm run test:matchups && npm run test:camera && npm run test:siege && npm run test:spatial && npm run test:norange && npm run test:phalanx && npm run test:explosions && npm run test:meteor && npm run test:vfxtoggle"
+    "test:waves": "node tests/waves.test.mjs",
+    "test": "npm run test:commanders && npm run test:grid && npm run test:craters && npm run test:variants && npm run test:antistun && npm run test:cards && npm run test:mapgrowth && npm run test:matchups && npm run test:camera && npm run test:siege && npm run test:spatial && npm run test:norange && npm run test:phalanx && npm run test:explosions && npm run test:meteor && npm run test:vfxtoggle && npm run test:waves"
   }
 }

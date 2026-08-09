@@ -56,7 +56,10 @@ export function selectTarget(game, tower, list) {
 
 /** Distance restante avant la base (plus bas = plus avancé). */
 function progress(game, e) {
-  if (e.air) return (game.grid.airLength - e.travel) / C;
+  if (e.air) {
+    const lane = game.grid.airLanes[e.airLane] || game.grid.airLanes[0];
+    return (lane.length - e.travel) / C;
+  }
   return game.grid.progressGround(e);
 }
 
