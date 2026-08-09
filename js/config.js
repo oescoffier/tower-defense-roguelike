@@ -114,9 +114,9 @@ export const TOWERS = {
     spinDown: 2.2,
     desc: 'Cadence extrême. Monte en régime en tirant sans interruption. Touche le sol et l\'air. Redoutable contre les essaims, impuissante contre un blindage lourd.',
     upgrades: [
-      { cost: 60, damage: 1.35, rate: 1.15, range: 1.05 },
-      { cost: 96, damage: 1.40, rate: 1.20, range: 1.08 },
-      { cost: 154, damage: 1.50, rate: 1.25, range: 1.10 }
+      { cost: 60, damage: 1.35, rate: 1.15 },
+      { cost: 96, damage: 1.40, rate: 1.20 },
+      { cost: 154, damage: 1.50, rate: 1.25 }
     ]
   },
 
@@ -137,9 +137,9 @@ export const TOWERS = {
     ignoreArmor: true,
     desc: 'Tir hitscan longue portée. Ignore l\'armure, traverse 2 ennemis, peut critiquer. Parfait contre une cible blindée isolée, gâché sur un essaim dispersé — et une plaque réactive (MONOLITHE) plafonne chaque coup, gros ou petit.',
     upgrades: [
-      { cost: 105, damage: 1.45, rate: 1.10, range: 1.06 },
-      { cost: 168, damage: 1.50, rate: 1.12, range: 1.08, pierce: 1 },
-      { cost: 269, damage: 1.60, rate: 1.15, range: 1.10, critChance: 0.10 }
+      { cost: 105, damage: 1.45, rate: 1.10 },
+      { cost: 168, damage: 1.50, rate: 1.12, pierce: 1 },
+      { cost: 269, damage: 1.60, rate: 1.15, critChance: 0.10 }
     ]
   },
 
@@ -160,7 +160,7 @@ export const TOWERS = {
     desc: 'Obus en cloche, dégâts de zone. Zone morte de 2 cases : ne peut pas tirer au contact. Sol uniquement — ravage les groupes compacts, aveugle face aux aériens.',
     upgrades: [
       { cost: 120, damage: 1.40, splash: 1.12, rate: 1.10 },
-      { cost: 192, damage: 1.45, splash: 1.14, range: 1.10 },
+      { cost: 192, damage: 1.45, splash: 1.14 },
       { cost: 307, damage: 1.55, splash: 1.18, rate: 1.15 }
     ]
   },
@@ -207,7 +207,7 @@ export const TOWERS = {
     desc: 'Cône de flammes continu. Applique une brûlure cumulable qui ignore l\'armure : redoutable contre les blindés. Sol uniquement.',
     upgrades: [
       { cost: 78, damage: 1.35, burnDps: 1.30, cone: 1.10 },
-      { cost: 125, damage: 1.40, burnDur: 1.30, range: 1.12 },
+      { cost: 125, damage: 1.40, burnDur: 1.30 },
       { cost: 200, damage: 1.50, burnDps: 1.40, burnStacks: 3 }
     ]
   },
@@ -229,7 +229,7 @@ export const TOWERS = {
     flakSplash: 1.1,
     desc: 'Missiles à tête chercheuse. Dégâts massifs, parfait contre un blindage aérien lourd, dépassé par un essaim véloce. NE TIRE QUE SUR LES AÉRIENS.',
     upgrades: [
-      { cost: 140, damage: 1.40, rate: 1.12, range: 1.06 },
+      { cost: 140, damage: 1.40, rate: 1.12 },
       { cost: 224, damage: 1.45, missiles: 1, turnRate: 1.15 },
       { cost: 358, damage: 1.55, missiles: 1, flakSplash: 1.3 }
     ]
@@ -313,8 +313,10 @@ export const COMMANDERS = {
   cmdr_hawkeye: {
     id: 'cmdr_hawkeye', name: 'ŒIL DE FAUCON', archetype: 'sniper', cost: 380, accent: '#ff7043',
     targets: TARGET.BOTH, damage: 500, rate: 2.2, range: 4, pierce: 4, critChance: 0.5, critMult: 3,
-    desc: 'Voit et abat tout ce qui entre sur le terrain. Son regard guide le tir : toutes les tours à 6 cases gagnent 25% de portée.',
-    ability: { type: 'aura', target: 'towers', stat: 'range', value: 0.25, radius: 6 },
+    desc: 'Voit et abat tout ce qui entre sur le terrain. Son regard guide le tir : toutes les tours à 6 cases infligent 25% de dégâts en plus.',
+    // La portée reste toujours EXACTEMENT celle de TOWERS/COMMANDERS : plus
+    // aucune aptitude ne doit pouvoir la faire varier (voir Tower.recompute).
+    ability: { type: 'aura', target: 'towers', stat: 'damage', value: 0.25, radius: 6 },
     upgrades: []
   },
   cmdr_executioner: {
@@ -422,8 +424,10 @@ export const COMMANDERS = {
   cmdr_interceptor: {
     id: 'cmdr_interceptor', name: 'INTERCEPTEUR', archetype: 'aa', cost: 400, accent: '#039be5',
     targets: TARGET.AIR, damage: 320, rate: 2.6, range: 3, missiles: 4, missileSpeed: 24, turnRate: 11, flakSplash: 1.6,
-    desc: 'Rien n\'est assez rapide ou blindé pour lui échapper. Son uplink radar porte à 5 cases : +30% de portée pour toutes les tours proches.',
-    ability: { type: 'aura', target: 'towers', stat: 'range', value: 0.3, radius: 5 },
+    desc: 'Rien n\'est assez rapide ou blindé pour lui échapper. Son uplink radar porte à 5 cases : +30% de cadence pour toutes les tours proches.',
+    // La portée reste toujours EXACTEMENT celle de TOWERS/COMMANDERS : plus
+    // aucune aptitude ne doit pouvoir la faire varier (voir Tower.recompute).
+    ability: { type: 'aura', target: 'towers', stat: 'rate', value: 0.3, radius: 5 },
     upgrades: []
   }
 };
@@ -683,7 +687,7 @@ export const BRANCHES = [
 const towerStats = (t) => ([
   { key: `${t}.damage`, v: 0.025, fmt: '+{v}% dégâts', pct: true, w: 26 },
   { key: `${t}.rate`, v: 0.018, fmt: '+{v}% cadence', pct: true, w: 22 },
-  { key: `${t}.range`, v: 0.016, fmt: '+{v}% portée', pct: true, w: 16 },
+  { key: `${t}.vsSlowed`, v: 0.016, fmt: '+{v}% dégâts sur cible ralentie ou étourdie', pct: true, w: 16 },
   { key: `${t}.cost`, v: -0.014, fmt: '{v}% coût de construction', pct: true, w: 10 }
 ]);
 
@@ -703,7 +707,7 @@ export const BRANCH_STATS = {
   mortar: [
     ...towerStats('mortar'),
     { key: 'mortar.splash', v: 0.015, fmt: '+{v}% rayon d\'explosion', pct: true, w: 18 },
-    { key: 'mortar.craterDps', v: 0.03, fmt: '+{v}% dégâts de cratère', pct: true, w: 12 },
+    { key: 'mortar.fullHp', v: 0.03, fmt: '+{v}% dégâts sur cible intacte', pct: true, w: 12 },
     { key: 'mortar.arcTime', v: -0.015, fmt: '{v}% temps de vol', pct: true, w: 8 }
   ],
   tesla: [
@@ -760,10 +764,10 @@ export const NOTABLES = {
     ["PERCE-BOUCLIER", "mg.vsShield", 0.5, "+50% de dégâts contre les cibles à bouclier"],
     ["SANS SOMMATION", "mg.fullHp", 0.35, "+35% de dégâts sur une cible encore intacte"],
     ["ENRAYAGE IMPOSSIBLE", "mg.rate", 0.16, "+16% cadence"],
-    ["LIGNE DE MIRE", "mg.range", 0.18, "+18% portée"]
+    ["OBUS DE RUPTURE", "mg.vsArmor", 0.4, "+40% de dégâts contre les cibles blindées"]
   ],
   sniper: [
-    ["ŒIL D'AIGLE", "sniper.range", 0.22, "+22% portée"],
+    ["ŒIL D'AIGLE", "sniper.vsGround", 0.35, "+35% de dégâts contre les ennemis au sol"],
     ["POINT FAIBLE", "sniper.critChance", 0.1, "+10% chance critique"],
     ["TRAVERSÉE", "sniper.pierce", 0.5, "+50% de cibles traversées"],
     ["EXÉCUTION", "sniper.execute", 0.08, "Élimine les cibles non-boss sous 8% de vie"],
@@ -782,7 +786,7 @@ export const NOTABLES = {
   ],
   mortar: [
     ["ONDE DE CHOC", "mortar.splash", 0.2, "+20% rayon d'explosion"],
-    ["NAPALM", "mortar.craterDps", 0.45, "+45% dégâts de cratère"],
+    ["NAPALM", "mortar.fullHp", 0.45, "+45% de dégâts contre une cible encore intacte"],
     ["SALVE DOUBLE", "mortar.salvo", 1, "Tire un obus supplémentaire par salve"],
     ["ÉCLATS", "mortar.shrapnel", 6, "L'explosion projette 6 éclats"],
     ["TIR TENDU", "mortar.arcTime", -0.3, "-30% temps de vol"],
@@ -794,7 +798,7 @@ export const NOTABLES = {
     ["ACIER FONDU", "mortar.shred", 1.5, "Chaque explosion retire définitivement 1.5 point d'armure"],
     ["PILONNAGE", "mortar.vsSlowed", 0.55, "+55% de dégâts sur une cible ralentie ou étourdie"],
     ["CHARGE CREUSE", "mortar.damage", 0.2, "+20% dégâts"],
-    ["BOMBARDEMENT", "mortar.range", 0.2, "+20% portée"],
+    ["BOMBARDEMENT", "mortar.vsShield", 0.5, "+50% de dégâts contre les cibles à bouclier"],
     ["CADENCE DE TIR", "mortar.rate", 0.16, "+16% cadence"],
     ["ACHÈVEMENT", "mortar.lowHp", 0.6, "+60% de dégâts sur les cibles sous 35% de vie"]
   ],
@@ -814,7 +818,7 @@ export const NOTABLES = {
     ["PLASMA", "tesla.vsBurning", 0.5, "+50% de dégâts sur une cible qui brûle"],
     ["BOBINE LOURDE", "tesla.rate", 0.18, "+18% cadence"],
     ["SURTENSION", "tesla.damage", 0.2, "+20% dégâts"],
-    ["ANTENNE", "tesla.range", 0.18, "+18% portée"]
+    ["SYNCHRONISATION", "tesla.vsSlowed", 0.45, "+45% de dégâts sur une cible ralentie ou étourdie"]
   ],
   flame: [
     ["CARBURANT LOURD", "flame.burnDps", 0.3, "+30% dégâts de brûlure"],
@@ -830,7 +834,7 @@ export const NOTABLES = {
     ["DÉCAPAGE", "flame.shred", 0.8, "Chaque tick retire définitivement 0.8 point d'armure"],
     ["NAPALM COLLANT", "flame.vsSlowed", 0.5, "+50% de dégâts sur une cible ralentie ou étourdie"],
     ["SURCHAUFFE", "flame.damage", 0.2, "+20% dégâts directs"],
-    ["PRESSION", "flame.range", 0.22, "+22% portée"],
+    ["SOUFFLE AÉRIEN", "flame.vsAir", 0.4, "+40% de dégâts contre les aériens (variante DRAGON)"],
     ["INJECTION", "flame.rate", 0.16, "+16% cadence"],
     ["VAPORISATION", "flame.vsShield", 0.45, "+45% de dégâts contre les cibles à bouclier"]
   ],
@@ -848,7 +852,7 @@ export const NOTABLES = {
     ["CHARGE PERFORANTE", "aa.shred", 2, "Chaque impact retire définitivement 2 points d'armure"],
     ["TIR TENDU", "aa.vsSlowed", 0.45, "+45% de dégâts sur une cible ralentie ou étourdie"],
     ["OGIVE LOURDE", "aa.damage", 0.2, "+20% dégâts"],
-    ["RADAR LONGUE PORTÉE", "aa.range", 0.22, "+22% portée"],
+    ["RADAR MULTI-CIBLE", "aa.vsGround", 0.3, "+30% de dégâts contre les ennemis au sol (variante POLYVALENTE)"],
     ["RECHARGEMENT RAPIDE", "aa.rate", 0.18, "+18% cadence"],
     ["DÉTONATION DE PROXIMITÉ", "aa.vsBurning", 0.4, "+40% de dégâts sur une cible qui brûle"]
   ],
@@ -946,9 +950,9 @@ export const VARIANTS = {
       mult: { damage: 1.8, rate: 0.5 }, add: { armorPen: 6 }, cost: 1.25
     },
     {
-      id: 'mg_range', name: 'AFFÛT LONG', short: 'PORTÉE', icon: '◎', accent: '#71d58a',
-      desc: 'Portée quasi doublée : une seule tourelle couvre plusieurs boucles du chemin.',
-      mult: { range: 1.85, damage: 0.78, rate: 0.88 }
+      id: 'mg_range', name: 'AFFÛT STABILISÉ', short: 'STABLE', icon: '◎', accent: '#71d58a',
+      desc: 'Monture stabilisée : cadence maximale dès le premier tir, sans montée en régime. Un peu moins de dégâts par balle.',
+      mult: { damage: 0.85 }, set: { spinUp: 0.15, spinDown: 0.15 }
     }
   ],
 
@@ -1003,27 +1007,27 @@ export const VARIANTS = {
     },
     {
       id: 'tesla_range', name: 'CHAMP ÉTENDU', short: 'PORTÉE', icon: '◎', accent: '#71d58a',
-      desc: 'Portée et distance de rebond très augmentées : la chaîne court beaucoup plus loin.',
-      mult: { range: 1.7, bounceRange: 1.65, damage: 0.85 }
+      desc: 'Distance de rebond très augmentée : la chaîne court beaucoup plus loin d\'une cible à l\'autre.',
+      mult: { bounceRange: 2.1, damage: 0.85 }
     }
   ],
 
   flame: [
     {
-      id: 'flame_reach', name: 'LANCE LONGUE', short: 'PORTÉE', icon: '◎', accent: '#71d58a',
-      desc: 'Un jet beaucoup plus long, mais un cône plus étroit : redoutable sur une ligne droite.',
-      mult: { range: 2.1, cone: 0.7, damage: 1.1 }
+      id: 'flame_reach', name: 'JET CONCENTRÉ', short: 'CONCENTRÉ', icon: '◎', accent: '#71d58a',
+      desc: 'Jet étroit et concentré, à cadence bien plus élevée : redoutable sur une ligne droite.',
+      mult: { cone: 0.5, rate: 1.6, damage: 1.05 }
     },
     {
       id: 'flame_nova', name: 'BRASIER', short: 'TOUT AUTOUR', icon: '❋', accent: '#ff3d3d',
       desc: 'Ne vise plus : brûle en permanence tout ce qui l\'entoure, sur 360°. À placer au cœur du trafic.',
-      mult: { range: 1.05, damage: 1.05 }, set: { cone: 360 },
+      mult: { damage: 1.05 }, set: { cone: 360 },
       flags: { omni: true }, cost: 1.25
     },
     {
       id: 'flame_thermite', name: 'THERMITE', short: 'DÉGÂTS', icon: '✦', accent: '#e46363',
-      desc: 'Flammes bien plus chaudes et brûlure dévastatrice, sur une portée un peu plus courte.',
-      mult: { damage: 2.8, burnDps: 3.2, range: 0.92, rate: 0.9 }, cost: 1.2
+      desc: 'Flammes bien plus chaudes et brûlure dévastatrice, à cadence un peu plus lente.',
+      mult: { damage: 2.8, burnDps: 3.2, rate: 0.9 }, cost: 1.2
     }
   ],
 
@@ -1074,12 +1078,11 @@ export const VARIANT_RING = 10;
 const ICON_RULES = [
   [/\.damage$|allDamage/, '✦'],   // dégâts bruts
   [/\.rate$/, '»'],               // cadence
-  [/\.range$/, '◎'],              // portée
   [/\.cost$/, '¤'],               // prix
   [/crit/i, '✷'],                 // critique
   [/pierce|armorPen/i, '➤'],      // perçage
   [/splash|flakSplash/i, '◍'],    // zone
-  [/burn|craterDps|inferno|combust|melt|spread/i, '≈'],  // feu
+  [/burn|inferno|combust|melt|spread/i, '≈'],  // feu
   [/bounce|chain|emp|storm|overload|charge/i, '⌁'],      // électricité
   [/missile|salvo|barrage|cluster/i, '⁂'],               // munitions
   [/spin|deluge|fusillade/i, '◔'],                       // montée en régime

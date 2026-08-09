@@ -396,7 +396,6 @@ function growMap() {
     t.gx += 1; t.gy += 1;
     t.px = grid.cx(t.gx);
     t.py = grid.cy(t.gy);
-    for (const c of t.craters) { c.x += off; c.y += off; }
   }
 
   for (const e of game.enemies) {
@@ -591,31 +590,6 @@ function step(dt) {
     if (game.projectiles[i].dead) game.projectiles.splice(i, 1);
   }
 
-  // Cratères persistants du mortier — dégâts continus invisibles à l'oeil
-  // près, pas besoin d'une précision à 60Hz : on ne fait tourner cette
-  // boucle (tours × cratères × ennemis, potentiellement des milliers de
-  // vérifications avec beaucoup de mortiers et une vague fournie) qu'à
-  // ~15Hz, en reportant le dt accumulé pour garder le même DPS total.
-  game.craterAcc = (game.craterAcc || 0) + dt;
-  if (game.craterAcc >= 1 / 15) {
-    const tickDt = game.craterAcc;
-    game.craterAcc = 0;
-    for (const t of game.towers) {
-      if (t.archetype !== 'mortar' || !t.craters.length) continue;
-      const boost = 1 + (game.mods['mortar.craterDps'] || 0);
-      const baseDps = t.stats.damage * 0.18 * boost;
-      for (const c of t.craters) {
-        // Une zone irradiée (ogive nucléaire) porte ses propres dégâts.
-        const dps = (c.dps !== undefined ? c.dps : baseDps) * (c.dps !== undefined ? boost : 1);
-        for (const e of game.enemies) {
-          if (e.dead || e.air) continue;
-          if ((e.x - c.x) ** 2 + (e.y - c.y) ** 2 <= c.r * c.r) {
-            e.damage(dps * tickDt, { type: 'burn', silent: true }, game);
-          }
-        }
-      }
-    }
-  }
 
   game.vfx.update(dt);
 

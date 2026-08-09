@@ -15,6 +15,7 @@
     "test:camera": "node tests/camera.test.mjs",
     "test:siege": "node tests/siege.test.mjs",
     "test:spatial": "node tests/spatial.test.mjs",
-    "test": "npm run test:commanders && npm run test:grid && npm run test:craters && npm run test:variants && npm run test:antistun && npm run test:cards && npm run test:mapgrowth && npm run test:matchups && npm run test:camera && npm run test:siege && npm run test:spatial"
+    "test:norange": "node tests/norange.test.mjs",
+    "test": "npm run test:commanders && npm run test:grid && npm run test:craters && npm run test:variants && npm run test:antistun && npm run test:cards && npm run test:mapgrowth && npm run test:matchups && npm run test:camera && npm run test:siege && npm run test:spatial && npm run test:norange"
   }
 }

@@ -61,7 +61,7 @@ const P = [
   // ---------------------------------------------------------
   ['mg_c1', 'PLOMB LOURD', 'common', '✦', '+25% de dégâts pour les mitraillettes', { 'mg.damage': 0.25 }],
   ['mg_c2', 'BARILLET HUILÉ', 'common', '»', '+20% de cadence pour les mitraillettes', { 'mg.rate': 0.20 }],
-  ['mg_c3', 'LUNETTE DE CAMPAGNE', 'common', '◎', '+22% de portée pour les mitraillettes', { 'mg.range': 0.22 }],
+  ['mg_c3', 'PERCE-BOUCLIER', 'common', '◎', '+35% de dégâts pour les mitraillettes contre les cibles à bouclier', { 'mg.vsShield': 0.35 }],
   ['mg_c4', 'NOYAU PERFORANT', 'common', '➤', 'Les mitraillettes ignorent 5 points d\'armure', { 'mg.armorPen': 5 }],
   ['mg_r1', 'SUR-RÉGIME', 'rare', '◔', '+45% de régime maximum et montée deux fois plus rapide', { 'mg.spinMax': 0.45, 'mg.spinUp': -0.5 }],
   ['mg_r2', 'RICOCHET GUIDÉ', 'rare', '✳', '+35% de chance de ricochet sur une seconde cible', { 'mg.ricochet': 0.35 }],
@@ -75,7 +75,7 @@ const P = [
   // ---------------------------------------------------------
   ['sn_c1', 'MUNITION CALIBRÉE', 'common', '✦', '+28% de dégâts pour les snipers', { 'sniper.damage': 0.28 }],
   ['sn_c2', 'CULASSE POLIE', 'common', '»', '+22% de cadence pour les snipers', { 'sniper.rate': 0.22 }],
-  ['sn_c3', 'TÉLÉMÈTRE', 'common', '◎', '+30% de portée pour les snipers', { 'sniper.range': 0.30 }],
+  ['sn_c3', 'TÉLÉMÈTRE', 'common', '◎', '+40% de dégâts pour les snipers contre une cible ralentie ou étourdie', { 'sniper.vsSlowed': 0.40 }],
   ['sn_c4', 'POINT FAIBLE', 'common', '✷', '+12% de chance critique pour les snipers', { 'sniper.critChance': 0.12 }],
   ['sn_r1', 'LÉTALITÉ', 'rare', '✷', '+70% de dégâts critiques pour les snipers', { 'sniper.critMult': 0.70 }],
   ['sn_r2', 'BALLE TRAVERSANTE', 'rare', '➤', '+120% de cibles traversées par tir', { 'sniper.pierce': 1.2 }],
@@ -91,19 +91,19 @@ const P = [
   ['mo_c2', 'CHARGEMENT RAPIDE', 'common', '»', '+20% de cadence pour les mortiers', { 'mortar.rate': 0.20 }],
   ['mo_c3', 'ONDE DE CHOC', 'common', '◍', '+25% de rayon d\'explosion', { 'mortar.splash': 0.25 }],
   ['mo_c4', 'TIR TENDU', 'common', '⥁', 'Les obus arrivent 30% plus vite', { 'mortar.arcTime': -0.30 }],
-  ['mo_r1', 'NAPALM', 'rare', '≈', '+80% de dégâts de cratère', { 'mortar.craterDps': 0.80 }],
+  ['mo_r1', 'NAPALM', 'rare', '≈', '+80% de dégâts de mortier contre une cible encore intacte', { 'mortar.fullHp': 0.80 }],
   ['mo_r2', 'SALVE DOUBLE', 'rare', '⁂', 'Chaque tir de mortier lance un obus supplémentaire', { 'mortar.salvo': 1 }],
   ['mo_r3', 'ÉCLATS', 'rare', '✳', 'Chaque explosion projette 8 éclats', { 'mortar.shrapnel': 8 }],
   ['mo_e1', 'SISMIQUE', 'epic', '◉', 'Les explosions de mortier étourdissent 0.5 s', { 'mortar.stun': 0.5 }],
   ['mo_e2', 'DÉMOLITION', 'epic', '⊘', '+85% de dégâts de mortier contre les cibles blindées', { 'mortar.vsArmor': 0.85 }],
-  ['mo_l1', 'TAPIS DE BOMBES', 'legendary', '▦', 'Chaque 5e salve tire 4 obus en éventail, et les cratères durent toute la vague', { 'mortar.carpet': 1, 'mortar.scorched': 1 }, { unique: true }],
+  ['mo_l1', 'TAPIS DE BOMBES', 'legendary', '▦', 'Chaque 5e salve tire 4 obus en éventail, et chaque explosion embrase durablement ce qu\'elle touche', { 'mortar.carpet': 1, 'mortar.scorched': 1 }, { unique: true }],
 
   // ---------------------------------------------------------
   //  TESLA
   // ---------------------------------------------------------
   ['te_c1', 'BOBINE DENSE', 'common', '✦', '+26% de dégâts pour les teslas', { 'tesla.damage': 0.26 }],
   ['te_c2', 'DÉCHARGE RAPIDE', 'common', '»', '+22% de cadence pour les teslas', { 'tesla.rate': 0.22 }],
-  ['te_c3', 'ANTENNE HAUTE', 'common', '◎', '+25% de portée pour les teslas', { 'tesla.range': 0.25 }],
+  ['te_c3', 'ANTENNE HAUTE', 'common', '◎', '+35% de dégâts pour les teslas contre les ennemis au sol', { 'tesla.vsGround': 0.35 }],
   ['te_c4', 'ARC ÉTENDU', 'common', '⌁', '+2 rebonds pour les teslas', { 'tesla.bouncesFlat': 2 }],
   ['te_r1', 'SUPRACONDUCTEUR', 'rare', '⌁', 'Les rebonds conservent 12% de dégâts en plus', { 'tesla.bounceFalloff': 0.12 }],
   ['te_r2', 'CHAMP MAGNÉTIQUE', 'rare', '◎', '+50% de portée de rebond', { 'tesla.bounceRange': 0.50 }],
@@ -117,7 +117,7 @@ const P = [
   // ---------------------------------------------------------
   ['fl_c1', 'CARBURANT RAFFINÉ', 'common', '✦', '+28% de dégâts pour les lance-flammes', { 'flame.damage': 0.28 }],
   ['fl_c2', 'INJECTION FORCÉE', 'common', '»', '+22% de cadence pour les lance-flammes', { 'flame.rate': 0.22 }],
-  ['fl_c3', 'BUSE LONGUE', 'common', '◎', '+28% de portée pour les lance-flammes', { 'flame.range': 0.28 }],
+  ['fl_c3', 'BUSE LONGUE', 'common', '◎', '+40% de dégâts pour les lance-flammes contre une cible ralentie ou étourdie', { 'flame.vsSlowed': 0.40 }],
   ['fl_c4', 'GUEULE LARGE', 'common', '❋', '+35% d\'angle de cône', { 'flame.cone': 0.35 }],
   ['fl_r1', 'THERMITE', 'rare', '≈', '+70% de dégâts de brûlure', { 'flame.burnDps': 0.70 }],
   ['fl_r2', 'BRAISE TENACE', 'rare', '≈', '+80% de durée de brûlure', { 'flame.burnDur': 0.80 }],
@@ -131,7 +131,7 @@ const P = [
   // ---------------------------------------------------------
   ['aa_c1', 'OGIVE DENSE', 'common', '✦', '+26% de dégâts pour les DCA', { 'aa.damage': 0.26 }],
   ['aa_c2', 'RECHARGEMENT AUTO', 'common', '»', '+22% de cadence pour les DCA', { 'aa.rate': 0.22 }],
-  ['aa_c3', 'RADAR ÉTENDU', 'common', '◎', '+28% de portée pour les DCA', { 'aa.range': 0.28 }],
+  ['aa_c3', 'RADAR ÉTENDU', 'common', '◎', '+35% de dégâts pour les DCA sur une cible qui brûle', { 'aa.vsBurning': 0.35 }],
   ['aa_c4', 'GUIDAGE ACTIF', 'common', '⥁', '+60% de capacité de guidage des missiles', { 'aa.turnRate': 0.60 }],
   ['aa_r1', 'SALVE', 'rare', '⁂', '+1 missile par tir de DCA', { 'aa.missilesFlat': 1 }],
   ['aa_r2', 'FLAK LARGE', 'rare', '◍', '+70% de rayon d\'explosion des missiles', { 'aa.flakSplash': 0.70 }],
@@ -188,8 +188,8 @@ const P = [
   // ---------------------------------------------------------
   //  PACTES — un gain franc contre un vrai prix
   // ---------------------------------------------------------
-  ['pc_r1', 'LIGNE DE FRONT', 'rare', '⚖', '+45% de dégâts partout, mais −25% de portée partout',
-    { 'player.allDamage': 0.45, 'mg.range': -0.25, 'sniper.range': -0.25, 'mortar.range': -0.25, 'tesla.range': -0.25, 'flame.range': -0.25, 'aa.range': -0.25 }],
+  ['pc_r1', 'LIGNE DE FRONT', 'rare', '⚖', '+45% de dégâts partout, mais tes tours coûtent 20% plus cher à construire',
+    { 'player.allDamage': 0.45, 'player.allCost': 0.20 }],
   ['pc_r2', 'MARCHÉ NOIR', 'rare', '⚖', '+55% de crédits par élimination, mais −20% de dégâts partout',
     { 'player.goldPerKill': 0.55, 'player.allDamage': -0.20 }],
   ['pc_r3', 'SURPRODUCTION', 'rare', '⚖', '−35% sur le coût de toutes les tours, mais −15% de cadence partout',
@@ -251,11 +251,10 @@ const P = [
   // ---------------------------------------------------------
   //  CARTES SECRÈTES — clin d'œil, très rares
   // ---------------------------------------------------------
-  ['eg_answer', 'LA RÉPONSE', 'secret', '4²', 'La réponse à la grande question. +42% de dégâts, de cadence, de portée et de crédits. Sur absolument tout.',
+  ['eg_answer', 'LA RÉPONSE', 'secret', '4²', 'La réponse à la grande question. +42% de dégâts, de cadence, de crédits et de matériaux. Sur absolument tout.',
     {
-      'player.allDamage': 0.42, 'player.goldPerKill': 0.42, 'player.waveBonus': 0.42,
-      'mg.rate': 0.42, 'sniper.rate': 0.42, 'mortar.rate': 0.42, 'tesla.rate': 0.42, 'flame.rate': 0.42, 'aa.rate': 0.42,
-      'mg.range': 0.42, 'sniper.range': 0.42, 'mortar.range': 0.42, 'tesla.range': 0.42, 'flame.range': 0.42, 'aa.range': 0.42
+      'player.allDamage': 0.42, 'player.goldPerKill': 0.42, 'player.waveBonus': 0.42, 'player.materials': 0.42,
+      'mg.rate': 0.42, 'sniper.rate': 0.42, 'mortar.rate': 0.42, 'tesla.rate': 0.42, 'flame.rate': 0.42, 'aa.rate': 0.42
     },
     { unique: true }],
   ['eg_cat', 'LE CHAT DU SECTEUR', 'secret', '=^.^=', 'Personne ne sait comment il est entré. Il dort sur le réacteur et tout va mieux. +9 vies, et +9% sur à peu près tout.',
@@ -447,8 +446,8 @@ const SCOPE = {
 };
 
 const PROP = {
-  damage: 'dégâts', rate: 'cadence', range: 'portée', cost: 'coût',
-  splash: "rayon d'explosion", craterDps: 'dégâts de cratère', arcTime: 'temps de vol',
+  damage: 'dégâts', rate: 'cadence', cost: 'coût',
+  splash: "rayon d'explosion", arcTime: 'temps de vol',
   critChance: 'chance critique', critMult: 'dégâts critiques', pierce: 'perçage',
   bounces: 'rebonds', bouncesFlat: 'rebonds', bounceFalloff: 'dégâts conservés par rebond',
   bounceRange: 'portée de rebond', chainBlast: 'explosion en chaîne', chargeDur: 'durée de charge',

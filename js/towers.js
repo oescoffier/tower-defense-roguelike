@@ -64,7 +64,6 @@ export class Tower {
     this.spin = 0;                  // montée en régime (mitraillette)
     this.firing = false;
     this.target = null;
-    this.craters = [];
     this.shotCount = 0;
     this.salvoCount = 0;
     this.firstShotOfWave = true;
@@ -94,7 +93,7 @@ export class Tower {
     const upgradeSource = this.isCommander ? TOWERS[this.archetype].upgrades : d.upgrades;
 
     // Multiplicateurs cumulés des améliorations (achetées, ou de rang pour un commandant)
-    const up = { damage: 1, rate: 1, range: 1, splash: 1, burnDps: 1, burnDur: 1, cone: 1, turnRate: 1, flakSplash: 1, bounceRange: 1 };
+    const up = { damage: 1, rate: 1, splash: 1, burnDps: 1, burnDur: 1, cone: 1, turnRate: 1, flakSplash: 1, bounceRange: 1 };
     const add = { pierce: 0, bounces: 0, missiles: 0, critChance: 0, chainBlast: 0, burnStacks: 0 };
     for (let i = 0; i < this.level; i++) {
       const u = upgradeSource[i];
@@ -110,10 +109,12 @@ export class Tower {
 
     s.damage = d.damage * up.damage * (1 + m(mods, `${id}.damage`)) * global;
     s.rate = d.rate * up.rate * (1 + m(mods, `${id}.rate`));
-    s.range = d.range * up.range * (1 + m(mods, `${id}.range`));
-    // Zone morte (mortier) : distance minimale en deçà de laquelle un obus
-    // en cloche ne peut pas être tiré. Fixe, pas affectée par les bonus de
-    // portée (une contrainte mécanique, pas une statistique de puissance).
+    // Portée FIXE, volontairement à l'écart de tout multiplicateur (arbre,
+    // cartes, améliorations, variantes, aura de commandant) : ça devenait
+    // incontrôlable en cumulant les bonus sur une run longue. La portée
+    // affichée en jeu est TOUJOURS exactement celle définie dans TOWERS/
+    // COMMANDERS, quoi que le joueur débloque par ailleurs.
+    s.range = d.range;
     s.minRange = d.minRange || 0;
     s.armorPen = m(mods, `${id}.armorPen`);
     s.mask = d.targets;
@@ -159,13 +160,18 @@ export class Tower {
     // elle doit donc primer sur les upgrades comme sur l'arbre.
     const v = this.variant;
     if (v) {
+      // range/minRange sont volontairement hors de portée de toute variante
+      // (voir plus bas) : ignorés ici même si l'un des trois objets en
+      // définissait un par erreur.
       if (v.mult) {
         for (const [k, val] of Object.entries(v.mult)) {
+          if (k === 'range' || k === 'minRange') continue;
           if (typeof s[k] === 'number') s[k] *= val;
         }
       }
       if (v.add) {
         for (const [k, val] of Object.entries(v.add)) {
+          if (k === 'range' || k === 'minRange') continue;
           s[k] = (typeof s[k] === 'number' ? s[k] : 0) + val;
         }
       }
@@ -173,7 +179,10 @@ export class Tower {
       // definit une geometrie (un tir sur 360 deg reste 360, quels que
       // soient les bonus d'angle accumules dans l'arbre).
       if (v.set) {
-        for (const [k, val] of Object.entries(v.set)) s[k] = val;
+        for (const [k, val] of Object.entries(v.set)) {
+          if (k === 'range' || k === 'minRange') continue;
+          s[k] = val;
+        }
       }
       if (v.targets !== undefined) s.mask = v.targets;
       if (s.cone !== undefined) s.cone = Math.min(360, s.cone);
@@ -182,9 +191,10 @@ export class Tower {
     }
 
     // --- Aura de commandant --- (voir this.auraMult ; jamais via game.mods)
+    // s.range n'y figure PAS : aucune aura ne doit pouvoir la faire varier,
+    // voir le commentaire sur s.range plus haut.
     s.damage *= this.auraMult.damage;
     s.rate *= this.auraMult.rate;
-    s.range *= this.auraMult.range;
 
     this.stats = s;
     this.rangePx = s.range * C;
@@ -240,13 +250,6 @@ export class Tower {
     this.placeAnim = Math.min(1, this.placeAnim + dt * 3.2);
     if (this.recoil > 0) this.recoil = Math.max(0, this.recoil - dt * 7);
 
-    // Nettoyage des cratères expirés (mortier)
-    if (this.craters.length) {
-      for (let i = this.craters.length - 1; i >= 0; i--) {
-        if (game.time > this.craters[i].until) this.craters.splice(i, 1);
-      }
-    }
-
     let inRange = enemiesInRange(game, this.px, this.py, this.rangePx, this.stats.mask);
     // Zone morte (mortier) : une cible trop proche est hors de portée,
     // exactement comme une trop lointaine.
@@ -293,10 +296,6 @@ export class Tower {
   onWaveStart(game) {
     this.firstShotOfWave = true;
     if (!game.mods['mg.deluge']) this.spin = 0;
-    // Les cratères "permanents" (mortar.scorched) ne le sont que pour la
-    // vague en cours, comme annoncé — sans ça ils s'accumulent sans fin
-    // sur toute la partie et deviennent injouablement forts.
-    if (this.archetype === 'mortar') this.craters.length = 0;
   }
 
   // ----------------------------------------------------------
@@ -681,8 +680,10 @@ export class Tower {
 export function drawGhost(ctx, id, gx, gy, valid, time, grid, mods, loadout) {
   const px = grid.cx(gx), py = grid.cy(gy);
   const def = getTowerDef(id);
-  const modKey = COMMANDERS[id] ? def.archetype : id;
-  const range = def.range * (1 + m(mods, `${modKey}.range`)) * C;
+  // Portée fixe (voir Tower.recompute) : le fantôme de pose doit montrer
+  // exactement la même valeur que la tour une fois posée, jamais gonflée
+  // par l'arbre/les cartes.
+  const range = def.range * C;
   const variant = !COMMANDERS[id] ? variantFor(id, loadout) : null;
   const accent = (variant && variant.accent) || def.accent;
   const col = valid ? accent : PALETTE.danger;

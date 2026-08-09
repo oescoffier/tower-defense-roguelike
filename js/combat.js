@@ -273,19 +273,20 @@ function rayHits(game, x1, y1, x2, y2, mask) {
 
 
 /**
- * Retombées de l'OGIVE NUCLÉAIRE : après l'explosion, une large zone
- * irradiée continue à ronger tout ce qui la traverse. On réutilise le
- * système de cratères du mortier, avec un rayon et des dégâts propres.
+ * Retombées de l'OGIVE NUCLÉAIRE : une seconde salve de dégâts immédiate
+ * sur toute la zone, plus un étourdissement bref — l'explosion initiale
+ * (gérée par l'appelant) plus cette "onde de choc" secondaire, mais tout
+ * en un seul instant. PAS de zone qui continue à mordre frame après
+ * frame : ça pesait lourd (tours × zones × ennemis, chaque frame) et
+ * donnait de trop grandes zones visuelles à l'écran.
  */
 export function nukeFallout(game, tower, x, y, radiusPx) {
-  // Bornée en dur (pas juste un multiplicateur de radiusPx) : avec assez
-  // de bonus de portée de zone dans l'arbre, la zone irradiée pouvait
-  // finir par couvrir une bonne partie de la carte.
   const r = Math.min(radiusPx, GRID.cell * 3.2);
-  const life = 6;
-  game.vfx.crater(x, y, r, life);
-  tower.craters.push({ x, y, r, until: game.time + life, dps: tower.stats.damage * 0.09 });
-  if (tower.craters.length > 8) tower.craters.shift();
+  game.vfx.crater(x, y, r, 4); // marque au sol, purement décorative
+  explode(game, x, y, r, tower.stats.damage * 0.35, {
+    mask: TARGET.GROUND, source: tower, stun: 0.8, flat: true,
+    power: 0.8, color: PALETTE.ok
+  });
 
   // Champignon : anneaux concentriques + colonne de particules
   for (let i = 0; i < 3; i++) {
@@ -501,7 +502,7 @@ export const Weapons = {
         onHit: (g) => {
           const r = t.stats.splash * C;
           const vf = t.variantFlags || {};
-          explode(g, tx, ty, r, t.stats.damage, {
+          const hitList = explode(g, tx, ty, r, t.stats.damage, {
             mask: TARGET.GROUND, source: t,
             stun: (game.mods['mortar.stun'] || 0) + (vf.stun || 0),
             pull: !!game.mods['mortar.implode'],
@@ -509,14 +510,14 @@ export const Weapons = {
             color: vf.nuke ? PALETTE.ok : PALETTE.fire
           });
           if (vf.nuke) nukeFallout(g, t, tx, ty, r);
-          // "Permanents" veut dire "toute la vague", pas "pour le reste de la
-          // partie" : bornés à 60s (bien plus long qu'une vague normale) et
-          // nettoyés au démarrage de la vague suivante (Tower.onWaveStart),
-          // avec un nombre de cratères actifs plafonné pour éviter l'empilement.
-          const craterLife = game.mods['mortar.scorched'] ? 60 : FX.craterLife;
-          g.vfx.crater(tx, ty, r * 0.7, craterLife);
-          t.craters.push({ x: tx, y: ty, r: r * 0.7, until: g.time + craterLife });
-          if (t.craters.length > 8) t.craters.shift();
+          // TERRE BRÛLÉE (mortar.scorched) : l'explosion embrase ce qu'elle
+          // touche au lieu de laisser une zone qui continue à mordre —
+          // le feu suit chaque ennemi individuellement (déjà optimisé),
+          // pas une zone au sol vérifiée contre tout le monde chaque frame.
+          if (game.mods['mortar.scorched']) {
+            for (const e of hitList) e.applyBurn(t.stats.damage * 0.15, 3, 3, g, 0);
+          }
+          g.vfx.crater(tx, ty, r * 0.7, FX.craterLife); // marque au sol, purement décorative
           const shr = Math.floor(game.mods['mortar.shrapnel'] || 0);
           for (let k = 0; k < shr; k++) {
             const a = rand(0, TAU);
