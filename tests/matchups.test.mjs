@@ -6,7 +6,7 @@
 //  et que le décalage latéral des ennemis au sol (offset) est bien
 //  câblé, en particulier plus large pour les essaims.
 // ============================================================
-import { GRID, TARGET, TOWERS } from '../js/config.js';
+import { GRID, TARGET, TOWERS, COMMANDERS } from '../js/config.js';
 import { Grid } from '../js/grid.js';
 import { Enemy } from '../js/enemies.js';
 import { Tower } from '../js/towers.js';
@@ -238,6 +238,30 @@ console.log('\n=== MORTIER : ZONE MORTE (minRange) ===\n');
     if (problems.length) fail(`zone morte du mortier : ${problems.join(' · ')}`);
     else console.log(`[PASS] mortier : ignore une cible à ${(mortar.rangeMinPx * 0.5 / GRID.cell).toFixed(1)} cases (zone morte), vise celle dans sa fenêtre de tir`);
   }
+}
+
+// ============================================================
+//  Chaque commandant doit avoir EXACTEMENT la même portée (et la même
+//  zone morte, pour le mortier) que la tour de base de son archétype —
+//  pas une portée "élite" plus grande, une portée identique.
+// ============================================================
+console.log('\n=== PORTÉE DES COMMANDANTS = PORTÉE DE LEUR TOUR DE BASE ===\n');
+{
+  let mismatches = 0;
+  for (const [cid, def] of Object.entries(COMMANDERS)) {
+    const base = TOWERS[def.archetype];
+    if (!base) { fail(`${cid} : archétype "${def.archetype}" introuvable dans TOWERS`); mismatches++; continue; }
+    if (def.range !== base.range) {
+      fail(`${cid} (${def.archetype}) : range=${def.range}, attendu ${base.range} (celui de sa tour de base)`);
+      mismatches++;
+    }
+    const baseMin = base.minRange || 0, defMin = def.minRange || 0;
+    if (defMin !== baseMin) {
+      fail(`${cid} (${def.archetype}) : minRange=${defMin}, attendu ${baseMin} (celui de sa tour de base)`);
+      mismatches++;
+    }
+  }
+  if (mismatches === 0) console.log(`[PASS] les ${Object.keys(COMMANDERS).length} commandants ont tous exactement la portée (et la zone morte) de leur tour de base`);
 }
 
 console.log(`\n${fails === 0 ? 'TOUT EST VERT.' : `${fails} PROBLÈME(S) DÉTECTÉ(S).`}\n`);

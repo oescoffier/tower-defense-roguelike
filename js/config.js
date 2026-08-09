@@ -281,21 +281,21 @@ export const TOWER_ORDER = ['mg', 'sniper', 'mortar', 'tesla', 'flame', 'aa', 's
 export const COMMANDERS = {
   cmdr_fury: {
     id: 'cmdr_fury', name: 'FURIE', archetype: 'mg', cost: 300, accent: '#ff6a3d',
-    targets: TARGET.BOTH, damage: 32, rate: 16, range: 2.9, projSpeed: 36, spinMax: 3.4, spinUp: 0.5, spinDown: 0.3,
+    targets: TARGET.BOTH, damage: 32, rate: 16, range: 2, projSpeed: 36, spinMax: 3.4, spinUp: 0.5, spinDown: 0.3,
     desc: 'Rafale ininterrompue qui monte en régime presque instantanément. Sa cadence est contagieuse : toutes les tours à 3.5 cases tirent 25% plus vite.',
     ability: { type: 'aura', target: 'towers', stat: 'rate', value: 0.25, radius: 3.5 },
     upgrades: []
   },
   cmdr_leadstorm: {
     id: 'cmdr_leadstorm', name: 'TEMPÊTE DE PLOMB', archetype: 'mg', cost: 300, accent: '#ffae42',
-    targets: TARGET.BOTH, damage: 24, rate: 22, range: 2.6, projSpeed: 42, spinMax: 2.6, spinUp: 0.8, spinDown: 0.6,
+    targets: TARGET.BOTH, damage: 24, rate: 22, range: 2, projSpeed: 42, spinMax: 2.6, spinUp: 0.8, spinDown: 0.6,
     desc: 'Un déluge de balles qui ricochent d\'une cible à l\'autre. Toutes les 5 secondes, une giclée de plomb balaie l\'ennemi le plus solide à sa portée.',
     ability: { type: 'pulse', kind: 'nova', interval: 5, damage: 70, radius: 2.6, targetMask: TARGET.BOTH, rangeLimited: true },
     upgrades: []
   },
   cmdr_bastion: {
     id: 'cmdr_bastion', name: 'BASTION', archetype: 'mg', cost: 320, accent: '#c94b4b',
-    targets: TARGET.BOTH, damage: 48, rate: 12, range: 2.5, projSpeed: 30, spinMax: 2.0, spinUp: 1.0, spinDown: 1.0,
+    targets: TARGET.BOTH, damage: 48, rate: 12, range: 2, projSpeed: 30, spinMax: 2.0, spinUp: 1.0, spinDown: 1.0,
     desc: 'Mur de plomb qui écrase tout ce qui s\'approche. Tout ennemi au sol à moins de 3 cases patauge, ralenti de 30% en permanence.',
     ability: { type: 'auraDebuff', kind: 'slow', value: 0.3, radius: 3 },
     upgrades: []
@@ -303,7 +303,7 @@ export const COMMANDERS = {
 
   cmdr_ghost: {
     id: 'cmdr_ghost', name: 'FANTÔME', archetype: 'sniper', cost: 420, accent: '#ff3b3b',
-    targets: TARGET.BOTH, damage: 900, rate: 1.4, range: 4.9, pierce: 6, critChance: 0.35, critMult: 4,
+    targets: TARGET.BOTH, damage: 900, rate: 1.4, range: 4, pierce: 6, critChance: 0.35, critMult: 4,
     desc: 'Tir fantôme, précision inhumaine. Toutes les 6 secondes, achève instantanément l\'ennemi le plus proche de la mort dans sa portée (hors boss).',
     // rangeLimited : borné à sa propre portée, sinon un seul Fantôme nettoie
     // n'importe quelle vague depuis un coin de la carte (combo "impossible à perdre").
@@ -312,7 +312,7 @@ export const COMMANDERS = {
   },
   cmdr_hawkeye: {
     id: 'cmdr_hawkeye', name: 'ŒIL DE FAUCON', archetype: 'sniper', cost: 380, accent: '#ff7043',
-    targets: TARGET.BOTH, damage: 500, rate: 2.2, range: 5.8, pierce: 4, critChance: 0.5, critMult: 3,
+    targets: TARGET.BOTH, damage: 500, rate: 2.2, range: 4, pierce: 4, critChance: 0.5, critMult: 3,
     desc: 'Voit et abat tout ce qui entre sur le terrain. Son regard guide le tir : toutes les tours à 6 cases gagnent 25% de portée.',
     ability: { type: 'aura', target: 'towers', stat: 'range', value: 0.25, radius: 6 },
     upgrades: []
@@ -326,7 +326,7 @@ export const COMMANDERS = {
   },
   cmdr_vengeance: {
     id: 'cmdr_vengeance', name: 'VENGEANCE', archetype: 'sniper', cost: 440, accent: '#a4161a',
-    targets: TARGET.BOTH, damage: 1100, rate: 0.8, range: 4.4, pierce: 8, critChance: 0.2, critMult: 5,
+    targets: TARGET.BOTH, damage: 1100, rate: 0.8, range: 4, pierce: 8, critChance: 0.2, critMult: 5,
     desc: 'Chaque tir embrase et transperce la colonne ennemie. À chaque élimination, toutes tours confondues, 20% de chance qu\'un tir vengeur frappe un ennemi proche.',
     ability: { type: 'onKill', kind: 'chainSpark', chance: 0.2, damage: 150, radius: 3 },
     upgrades: []
@@ -334,21 +334,21 @@ export const COMMANDERS = {
 
   cmdr_heavyarty: {
     id: 'cmdr_heavyarty', name: 'ARTILLERIE LOURDE', archetype: 'mortar', cost: 380, accent: '#e0a72e',
-    targets: TARGET.GROUND, damage: 260, rate: 1.0, range: 6.2, minRange: 2, splash: 3.2, arcTime: 0.6,
+    targets: TARGET.GROUND, damage: 260, rate: 1.0, range: 5, minRange: 2, splash: 3.2, arcTime: 0.6,
     desc: 'Pluie d\'obus sur toute une zone. Toutes les 8 secondes, un tir de barrage s\'abat sur l\'ennemi au sol le plus solide du terrain.',
     ability: { type: 'pulse', kind: 'nova', interval: 8, damage: 260, radius: 3.4, targetMask: TARGET.GROUND },
     upgrades: []
   },
   cmdr_scorchedearth: {
     id: 'cmdr_scorchedearth', name: 'TERRE BRÛLÉE', archetype: 'mortar', cost: 360, accent: '#c96f2e',
-    targets: TARGET.GROUND, damage: 180, rate: 1.3, range: 5.4, minRange: 2, splash: 2.6, arcTime: 0.55,
+    targets: TARGET.GROUND, damage: 180, rate: 1.3, range: 5, minRange: 2, splash: 2.6, arcTime: 0.55,
     desc: 'Ne laisse derrière lui que des ruines fumantes. Tout ennemi au sol à moins de 3 cases brûle en continu tant qu\'il reste dans la zone.',
     ability: { type: 'auraDebuff', kind: 'burn', value: 14, radius: 3 },
     upgrades: []
   },
   cmdr_earthquake: {
     id: 'cmdr_earthquake', name: 'SÉISME', archetype: 'mortar', cost: 380, accent: '#b5651d',
-    targets: TARGET.GROUND, damage: 220, rate: 0.9, range: 5.8, minRange: 2, splash: 3.6, arcTime: 0.7,
+    targets: TARGET.GROUND, damage: 220, rate: 0.9, range: 5, minRange: 2, splash: 3.6, arcTime: 0.7,
     desc: 'Chaque impact fait trembler le secteur. Toutes les 7 secondes, étourdit 1.2s tout ce qui se trouve à moins de 4 cases d\'elle.',
     ability: { type: 'pulse', kind: 'freeze', interval: 7, dur: 1.2, radius: 4 },
     upgrades: []
@@ -356,28 +356,28 @@ export const COMMANDERS = {
 
   cmdr_lightning: {
     id: 'cmdr_lightning', name: 'FOUDRE', archetype: 'tesla', cost: 420, accent: '#7fdfff',
-    targets: TARGET.BOTH, damage: 90, rate: 2.6, range: 2.8, bounces: 14, bounceFalloff: 0.94, bounceRange: 4.5, chargeDur: 6, chainBlast: 1.0,
+    targets: TARGET.BOTH, damage: 90, rate: 2.6, range: 2, bounces: 14, bounceFalloff: 0.94, bounceRange: 4.5, chargeDur: 6, chainBlast: 1.0,
     desc: 'L\'arc électrique ne s\'arrête presque jamais de rebondir. Toutes les 5 secondes, la foudre s\'abat sur l\'ennemi le plus solide du terrain.',
     ability: { type: 'pulse', kind: 'nova', interval: 5, damage: 110, radius: 2.2, targetMask: TARGET.BOTH },
     upgrades: []
   },
   cmdr_overvolt: {
     id: 'cmdr_overvolt', name: 'SURTENSION', archetype: 'tesla', cost: 400, accent: '#5ec8f8',
-    targets: TARGET.BOTH, damage: 130, rate: 2.0, range: 2.5, bounces: 8, bounceFalloff: 0.9, bounceRange: 3.6, chargeDur: 5, chainBlast: 1.4,
+    targets: TARGET.BOTH, damage: 130, rate: 2.0, range: 2, bounces: 8, bounceFalloff: 0.9, bounceRange: 3.6, chargeDur: 5, chainBlast: 1.4,
     desc: 'Chaque mort chargée devient une bombe. Son champ électrique amplifie tout : toutes les tours à 3 cases infligent 25% de dégâts en plus.',
     ability: { type: 'aura', target: 'towers', stat: 'damage', value: 0.25, radius: 3 },
     upgrades: []
   },
   cmdr_reactor: {
     id: 'cmdr_reactor', name: 'RÉACTEUR', archetype: 'tesla', cost: 400, accent: '#38b6ff',
-    targets: TARGET.BOTH, damage: 70, rate: 3.2, range: 2.6, bounces: 10, bounceFalloff: 0.92, bounceRange: 4.0, chargeDur: 6, chainBlast: 0.8,
+    targets: TARGET.BOTH, damage: 70, rate: 3.2, range: 2, bounces: 10, bounceFalloff: 0.92, bounceRange: 4.0, chargeDur: 6, chainBlast: 0.8,
     desc: 'Une cadence effrénée qui ne faiblit jamais. Chaque élimination, toutes tours confondues, a 8% de chance de reverser l\'énergie excédentaire à la base : +1 intégrité.',
     ability: { type: 'onKill', kind: 'healChance', chance: 0.08 },
     upgrades: []
   },
   cmdr_endlessstorm: {
     id: 'cmdr_endlessstorm', name: 'ORAGE ÉTERNEL', archetype: 'tesla', cost: 460, accent: '#29a8e0',
-    targets: TARGET.BOTH, damage: 100, rate: 2.2, range: 2.8, bounces: 12, bounceFalloff: 0.93, bounceRange: 4.2, chargeDur: 7, chainBlast: 1.2,
+    targets: TARGET.BOTH, damage: 100, rate: 2.2, range: 2, bounces: 12, bounceFalloff: 0.93, bounceRange: 4.2, chargeDur: 7, chainBlast: 1.2,
     desc: 'Le ciel entier devient une arme. Toutes les 10 secondes, une impulsion électromagnétique fait sauter le bouclier de tous les ennemis présents.',
     ability: { type: 'pulse', kind: 'emp', interval: 10 },
     upgrades: []
@@ -385,21 +385,21 @@ export const COMMANDERS = {
 
   cmdr_inferno: {
     id: 'cmdr_inferno', name: 'INFERNO', archetype: 'flame', cost: 380, accent: '#ff5722',
-    targets: TARGET.GROUND, damage: 55, rate: 9, range: 1.4, cone: 110, burnDps: 40, burnDur: 6, burnStacks: 12,
+    targets: TARGET.GROUND, damage: 55, rate: 9, range: 1, cone: 110, burnDps: 40, burnDur: 6, burnStacks: 12,
     desc: 'Une mer de flammes qui ne s\'éteint jamais. Toutes les 6 secondes, une éruption embrase tout ce qui se trouve autour d\'elle.',
     ability: { type: 'pulse', kind: 'nova', interval: 6, damage: 150, radius: 2.8, targetMask: TARGET.GROUND, selfCentered: true },
     upgrades: []
   },
   cmdr_dragon: {
     id: 'cmdr_dragon', name: 'DRAGON', archetype: 'flame', cost: 380, accent: '#ff8a3d',
-    targets: TARGET.GROUND, damage: 45, rate: 8, range: 1.5, cone: 90, burnDps: 30, burnDur: 5, burnStacks: 10,
+    targets: TARGET.GROUND, damage: 45, rate: 8, range: 1, cone: 90, burnDps: 30, burnDur: 5, burnStacks: 10,
     desc: 'Souffle un cône de feu qui touche même les aériens à basse altitude. Son aura embrase les armes proches : toutes les tours à 3.5 cases infligent 20% de dégâts en plus.',
     ability: { type: 'aura', target: 'towers', stat: 'damage', value: 0.2, radius: 3.5 },
     upgrades: []
   },
   cmdr_combustion: {
     id: 'cmdr_combustion', name: 'COMBUSTION', archetype: 'flame', cost: 360, accent: '#ff3d00',
-    targets: TARGET.GROUND, damage: 60, rate: 7, range: 1.3, cone: 80, burnDps: 45, burnDur: 5, burnStacks: 8,
+    targets: TARGET.GROUND, damage: 60, rate: 7, range: 1, cone: 80, burnDps: 45, burnDur: 5, burnStacks: 8,
     desc: 'Chaque cadavre en flammes devient une explosion. 25% de chance qu\'une élimination, toutes tours confondues, fasse détoner les ennemis proches.',
     ability: { type: 'onKill', kind: 'chainSpark', chance: 0.25, damage: 120, radius: 2.5 },
     upgrades: []
@@ -407,21 +407,21 @@ export const COMMANDERS = {
 
   cmdr_totalflak: {
     id: 'cmdr_totalflak', name: 'FLAK TOTALE', archetype: 'aa', cost: 440, accent: '#4fc3f7',
-    targets: TARGET.AIR, damage: 380, rate: 2.0, range: 3.6, missiles: 5, missileSpeed: 20, turnRate: 9, flakSplash: 2.2,
+    targets: TARGET.AIR, damage: 380, rate: 2.0, range: 3, missiles: 5, missileSpeed: 20, turnRate: 9, flakSplash: 2.2,
     desc: 'Sature le ciel de munitions. Toutes les tours à 4 cases tirent 20% plus vite, portées par le rythme du barrage.',
     ability: { type: 'aura', target: 'towers', stat: 'rate', value: 0.2, radius: 4 },
     upgrades: []
   },
   cmdr_sentinel: {
     id: 'cmdr_sentinel', name: 'SENTINELLE', archetype: 'aa', cost: 420, accent: '#29b6f6',
-    targets: TARGET.AIR, damage: 450, rate: 1.6, range: 4, missiles: 3, missileSpeed: 18, turnRate: 8, flakSplash: 1.8,
+    targets: TARGET.AIR, damage: 450, rate: 1.6, range: 3, missiles: 3, missileSpeed: 18, turnRate: 8, flakSplash: 1.8,
     desc: 'Ne laisse rien franchir la ligne aérienne. Toutes les 6 secondes, frappe l\'appareil le plus solide présent dans le ciel.',
     ability: { type: 'pulse', kind: 'nova', interval: 6, damage: 200, radius: 2.4, targetMask: TARGET.AIR },
     upgrades: []
   },
   cmdr_interceptor: {
     id: 'cmdr_interceptor', name: 'INTERCEPTEUR', archetype: 'aa', cost: 400, accent: '#039be5',
-    targets: TARGET.AIR, damage: 320, rate: 2.6, range: 3.4, missiles: 4, missileSpeed: 24, turnRate: 11, flakSplash: 1.6,
+    targets: TARGET.AIR, damage: 320, rate: 2.6, range: 3, missiles: 4, missileSpeed: 24, turnRate: 11, flakSplash: 1.6,
     desc: 'Rien n\'est assez rapide ou blindé pour lui échapper. Son uplink radar porte à 5 cases : +30% de portée pour toutes les tours proches.',
     ability: { type: 'aura', target: 'towers', stat: 'range', value: 0.3, radius: 5 },
     upgrades: []
@@ -521,6 +521,15 @@ export const ENEMIES = {
     // ponctuel ne sert à rien ici — seul le DPS soutenu (mitrailleuse,
     // tesla, brûlure) en vient à bout. Le vrai mur contre le sniper.
     hitCap: 0.05, unlock: 14
+  },
+  ram: {
+    id: 'ram', name: 'BÉLIER', air: false, hp: 190, speed: 1.15, armor: 6,
+    gold: 26, leak: 3, radius: 16, color: '#8b1e1e', shape: 'hex',
+    // siege : ignore le flow field. Fonce en ligne la plus directe possible
+    // vers la base, à travers tours ET cailloux, détruisant sans dégâts la
+    // première tour qu'il atteint sur chaque case traversée. Doit être
+    // abattu EN CHEMIN — une fois au contact d'une tour, c'est trop tard.
+    siege: true, unlock: 12
   },
 
   // ---- AIR ----
@@ -970,8 +979,8 @@ export const VARIANTS = {
     },
     {
       id: 'mortar_nuke', name: 'OGIVE NUCLÉAIRE', short: 'NUCLÉAIRE', icon: '☢', accent: '#c6e600',
-      desc: 'Très lente, mais dévastatrice : énorme explosion, puis une zone irradiée qui continue à ronger tout ce qui la traverse.',
-      mult: { damage: 2.8, rate: 0.23, splash: 1.75, arcTime: 2.2 },
+      desc: 'Très lente, mais dévastatrice : grosse explosion, puis une zone irradiée qui continue à ronger tout ce qui la traverse.',
+      mult: { damage: 2.8, rate: 0.23, splash: 1.4, arcTime: 2.2 },
       flags: { nuke: true }, cost: 2.0
     },
     {

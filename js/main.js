@@ -173,6 +173,25 @@ const game = {
     this.mods.__survivorBonus = want;
     for (const t of this.towers) t.recompute(this.mods);
     if (want > 0) UI.toast('<b>SURVIVANT</b><br>+40% dégâts sur toutes les tours', 'warn', 3000);
+  },
+
+  /**
+   * Un ennemi "siège" (BÉLIER) vient d'atteindre une tour sur son passage
+   * (voir Enemy._moveSiege) : elle est déjà retirée de la grille, il reste
+   * à la retirer de game.towers. Perte sèche, comme le perçage de chemin
+   * des nouveaux spawns — aucun remboursement.
+   */
+  onTowerCrushed(tower, siege) {
+    const ti = this.towers.indexOf(tower);
+    if (ti !== -1) this.towers.splice(ti, 1);
+    this.vfx.explosion(tower.px, tower.py, this.grid.cell * 0.9, PALETTE.danger, 1.4);
+    this.vfx.floatText(tower.px, tower.py - 20, 'ÉCRASÉE', PALETTE.danger, 14, 1);
+    if (this.selected === tower) { this.selected = null; UI.renderTowerPanel(this, null); }
+    for (const e of this.enemies) e.repath();
+    applyCommanderTowerAura(this);
+    UI.refreshShop(this);
+    UI.refreshHud(this);
+    UI.toast(`<b>PERCÉE</b><br>${siege.name} a écrasé une tour en fonçant vers le noyau`, 'bad', 2600);
   }
 };
 
@@ -378,7 +397,11 @@ function growMap() {
   for (const e of game.enemies) {
     if (e.air || e.dead) continue;
     e._px += off; e._py += off;
-    e._pickTarget();
+    // Un siège suit un tracé mis en cache (Enemy._moveSiege) indépendant du
+    // flow field : on force juste son recalcul au prochain update() au lieu
+    // d'appeler _pickTarget(), qui ne s'applique qu'au déplacement normal.
+    if (e.siege) e._siegeRepathTimer = 0;
+    else e._pickTarget();
     e._applyOffset();
   }
 

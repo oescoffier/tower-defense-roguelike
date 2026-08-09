@@ -266,26 +266,29 @@ function rayHits(game, x1, y1, x2, y2, mask) {
  * système de cratères du mortier, avec un rayon et des dégâts propres.
  */
 export function nukeFallout(game, tower, x, y, radiusPx) {
-  const r = radiusPx * 1.25;
-  const life = 9;
+  // Bornée en dur (pas juste un multiplicateur de radiusPx) : avec assez
+  // de bonus de portée de zone dans l'arbre, la zone irradiée pouvait
+  // finir par couvrir une bonne partie de la carte.
+  const r = Math.min(radiusPx, GRID.cell * 3.2);
+  const life = 6;
   game.vfx.crater(x, y, r, life);
   tower.craters.push({ x, y, r, until: game.time + life, dps: tower.stats.damage * 0.09 });
-  if (tower.craters.length > 6) tower.craters.shift();
+  if (tower.craters.length > 8) tower.craters.shift();
 
   // Champignon : anneaux concentriques + colonne de particules
   for (let i = 0; i < 3; i++) {
     game.vfx.ring(x, y, r * 0.2, r * (1.1 + i * 0.35), 0.6 + i * 0.2, PALETTE.ok, 4 - i);
   }
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 20; i++) {
     const a = Math.random() * TAU;
     const sp = 40 + Math.random() * 120;
     game.vfx.particle(x, y, Math.cos(a) * sp, Math.sin(a) * sp - 120,
       0.8 + Math.random() * 0.7, i % 3 ? PALETTE.ok : '#ffffff',
       3 + Math.random() * 4, { drag: 0.93, glow: true, fade: 0.6 });
   }
-  game.vfx.addShake(12);
-  game.vfx.addFlash(0.35, PALETTE.ok);
-  game.vfx.addChroma(7);
+  game.vfx.addShake(5);
+  game.vfx.addFlash(0.22, PALETTE.ok);
+  game.vfx.addChroma(4);
 }
 
 

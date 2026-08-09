@@ -5,7 +5,7 @@
 import { ENEMIES, WAVE, waveHpMult, waveCount, waveAirRatio } from './config.js';
 import { Rng } from './rng.js';
 
-const GROUND_POOL = ['grunt', 'runner', 'brute', 'swarm', 'healer', 'shielder', 'splitter', 'colossus', 'monolith'];
+const GROUND_POOL = ['grunt', 'runner', 'brute', 'swarm', 'healer', 'shielder', 'splitter', 'colossus', 'monolith', 'ram'];
 const AIR_POOL = ['drone', 'wasp', 'bomber', 'hornet'];
 
 /** Poids d'apparition d'un type à une vague donnée. */
@@ -23,6 +23,7 @@ function weightFor(id, wave) {
     case 'splitter': return Math.min(18, 4 + age * 0.8);
     case 'colossus': return Math.min(16, 3 + age * 0.6);
     case 'monolith': return Math.min(10, 2 + age * 0.35);
+    case 'ram': return Math.min(8, 2 + age * 0.3);
     case 'drone': return Math.max(8, 34 - wave * 0.6);
     case 'wasp': return Math.min(28, 9 + age * 1.2);
     case 'bomber': return Math.min(24, 6 + age * 1.0);

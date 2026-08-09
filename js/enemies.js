@@ -22,6 +22,9 @@ export class Enemy {
     this.hp = this.maxHp;
     this.armor = def.armor * (mods.armorMult || 1);
     this.baseArmor = this.armor;
+    // siège : ignore le flow field, fonce en ligne la plus directe vers la
+    // base à travers tours et cailloux (voir _moveSiege).
+    this.siege = !!def.siege;
     this.speed = def.speed * (mods.speedMult || 1);
     this.baseSpeed = this.speed;
     this.gold = Math.max(1, Math.round(def.gold * (mods.goldMult || 1)));
@@ -79,7 +82,13 @@ export class Enemy {
       this.wobble = Math.random() * Math.PI * 2;
       this.offset = (Math.random() - 0.5) * GRID.cell * 0.38 * (def.spread || 1);
       this.x = this._px; this.y = this._py;
-      this._pickTarget();
+      if (this.siege) {
+        this._siegePath = null;
+        this._siegeIndex = 0;
+        this._siegeRepathTimer = 0; // force le calcul du tracé au premier update
+      } else {
+        this._pickTarget();
+      }
       this._applyOffset();
     }
   }
@@ -106,7 +115,8 @@ export class Enemy {
 
   /** Appelé quand la grille change : on revalide la case visée. */
   repath() {
-    if (this.air) return;
+    // Un siège ignore les obstacles par définition : rien à revalider.
+    if (this.air || this.siege) return;
     if (!this.target) { this._pickTarget(); return; }
     if (this.grid.blocked(this.target.gx, this.target.gy)) this._pickTarget();
     else {
@@ -178,6 +188,7 @@ export class Enemy {
     this.speed = speed;
 
     if (this.air) this._moveAir(dt, game, speed);
+    else if (this.siege) this._moveSiege(dt, game, speed);
     else this._moveGround(dt, game, speed);
 
     // --- Soigneur ---
@@ -220,6 +231,48 @@ export class Enemy {
       const gx = this.target.gx, gy = this.target.gy;
       if (gx === g.base.x && gy === g.base.y) { this._applyOffset(); this.leakOut(game); return; }
       this._pickTarget();
+    } else {
+      this._px += (dx / d) * step;
+      this._py += (dy / d) * step;
+      this.angle = Math.atan2(dy, dx);
+    }
+    this._applyOffset();
+  }
+
+  /**
+   * Déplacement des ennemis "siège" (BÉLIER) : ignore complètement le flow
+   * field, suit la ligne géométriquement la plus directe vers la base
+   * (Grid._shortestIgnoringObstacles) à travers cailloux ET tours. Toute
+   * tour sur une case qu'il atteint est instantanément rasée — se défend
+   * en l'abattant AVANT qu'il n'arrive à destination, pas après.
+   */
+  _moveSiege(dt, game, speed) {
+    const g = this.grid;
+    this._siegeRepathTimer -= dt;
+    if (!this._siegePath || this._siegeIndex >= this._siegePath.length || this._siegeRepathTimer <= 0) {
+      const gx = Math.floor(this._px / g.cell), gy = Math.floor(this._py / g.cell);
+      this._siegePath = g._shortestIgnoringObstacles(gx, gy, g.base.x, g.base.y);
+      this._siegeIndex = 1; // 0 = case de départ, déjà atteinte
+      this._siegeRepathTimer = 3;
+    }
+
+    const next = this._siegePath[this._siegeIndex];
+    if (!next) { this._applyOffset(); return; }
+    const tx = g.cx(next.x), ty = g.cy(next.y);
+    const dx = tx - this._px, dy = ty - this._py;
+    const d = Math.hypot(dx, dy);
+    const step = speed * g.cell * dt;
+    this.wobble += dt * 9;
+
+    if (d <= step || d < 0.6) {
+      this._px = tx; this._py = ty;
+      const crushed = g.towerAt(next.x, next.y);
+      if (crushed) {
+        g.remove(next.x, next.y);
+        if (game.onTowerCrushed) game.onTowerCrushed(crushed, this);
+      }
+      if (next.x === g.base.x && next.y === g.base.y) { this._applyOffset(); this.leakOut(game); return; }
+      this._siegeIndex++;
     } else {
       this._px += (dx / d) * step;
       this._py += (dy / d) * step;
