@@ -17,13 +17,23 @@ export const PALETTE = {
   air: '#58b7e9',
   fire: '#ff7a29',
   tesla: '#8ad8ff',
-  violet: '#b878ff'
+  violet: '#b878ff',
+  // Une couleur par point de spawn au sol (voir Grid.paths / MAP_GROWTH),
+  // pour distinguer les couloirs quand la carte s'étend et en ouvre de
+  // nouveaux. Le premier reste le bleu accent historique.
+  pathColors: ['#0d67ff', '#ff3b3b', '#71d58a', '#f0d24b', '#b878ff']
 };
 
 // ---------- Grille ----------
+// cols/rows sont mutés en place par Grid.grow() (extension infinie de la
+// carte, cf. MAP_GROWTH) pour que GRID.w/h (et tout ce qui en dépend :
+// canvas, fitStage, etc.) restent synchronisés. baseCols/baseRows gardent
+// la taille d'origine, pour qu'une nouvelle partie reparte bien de zéro.
 export const GRID = {
   cols: 24,
   rows: 14,
+  baseCols: 24,
+  baseRows: 14,
   cell: 44,
   get w() { return this.cols * this.cell; },
   get h() { return this.rows * this.cell; }
@@ -35,7 +45,12 @@ export const GRID = {
 export const MAP_GROWTH = {
   every: 10,
   maxSpawns: 5,
-  spawnChance: 0.55
+  spawnChance: 0.55,
+  // Un nouveau spawn trop près de la base laisserait à peine le temps de
+  // réagir : distance minimale (en cases) exigée entre les deux.
+  minSpawnDistFromBase: 7,
+  // Densité de cailloux générée sur l'anneau fraîchement ajouté par grow().
+  ringRockChance: 0.32
 };
 
 export const CELL = {
@@ -90,7 +105,7 @@ export const TOWERS = {
     spinMax: 1.8,      // multiplicateur de cadence à plein régime
     spinUp: 1.6,       // secondes pour atteindre le plein régime
     spinDown: 2.2,
-    desc: 'Cadence extrême. Monte en régime en tirant sans interruption. Touche le sol et l\'air.',
+    desc: 'Cadence extrême. Monte en régime en tirant sans interruption. Touche le sol et l\'air. Redoutable contre les essaims, impuissante contre un blindage lourd.',
     upgrades: [
       { cost: 60, damage: 1.35, rate: 1.15, range: 1.05 },
       { cost: 96, damage: 1.40, rate: 1.20, range: 1.08 },
@@ -113,7 +128,7 @@ export const TOWERS = {
     critChance: 0.15,
     critMult: 2.5,
     ignoreArmor: true,
-    desc: 'Tir hitscan longue portée. Ignore l\'armure, traverse 2 ennemis, peut critiquer.',
+    desc: 'Tir hitscan longue portée. Ignore l\'armure, traverse 2 ennemis, peut critiquer. Parfait contre une cible blindée isolée, gâché sur un essaim dispersé.',
     upgrades: [
       { cost: 105, damage: 1.45, rate: 1.10, range: 1.06 },
       { cost: 168, damage: 1.50, rate: 1.12, range: 1.08, pierce: 1 },
@@ -134,7 +149,7 @@ export const TOWERS = {
     range: 6.5,
     splash: 1.6,       // rayon AoE en cellules
     arcTime: 0.75,     // temps de vol en secondes
-    desc: 'Obus en cloche, dégâts de zone. Laisse un cratère brûlant. Sol uniquement.',
+    desc: 'Obus en cloche, dégâts de zone. Laisse un cratère brûlant. Sol uniquement — ravage les groupes compacts, aveugle face aux aériens.',
     upgrades: [
       { cost: 120, damage: 1.40, splash: 1.12, rate: 1.10 },
       { cost: 192, damage: 1.45, splash: 1.14, range: 1.10 },
@@ -158,7 +173,7 @@ export const TOWERS = {
     bounceRange: 3.0,
     chargeDur: 4.0,        // durée de la marque « chargé »
     chainBlast: 0.6,       // % des dégâts relâchés quand un chargé meurt
-    desc: 'Arc électrique qui rebondit. Marque les cibles : leur mort déclenche une réaction en chaîne.',
+    desc: 'Arc électrique qui rebondit. Marque les cibles : leur mort déclenche une réaction en chaîne. Ravageur contre un groupe compact, presque inutile contre une cible isolée.',
     upgrades: [
       { cost: 110, damage: 1.35, bounces: 1, rate: 1.10 },
       { cost: 176, damage: 1.40, bounces: 1, bounceRange: 1.15 },
@@ -181,7 +196,7 @@ export const TOWERS = {
     burnDps: 8,
     burnDur: 3.0,
     burnStacks: 5,
-    desc: 'Cône de flammes continu. Applique une brûlure cumulable. Sol uniquement.',
+    desc: 'Cône de flammes continu. Applique une brûlure cumulable qui ignore l\'armure : redoutable contre les blindés. Sol uniquement.',
     upgrades: [
       { cost: 78, damage: 1.35, burnDps: 1.30, cone: 1.10 },
       { cost: 125, damage: 1.40, burnDur: 1.30, range: 1.12 },
@@ -204,7 +219,7 @@ export const TOWERS = {
     missileSpeed: 13,
     turnRate: 5.5,     // radians / seconde
     flakSplash: 1.1,
-    desc: 'Missiles à tête chercheuse. Dégâts massifs. NE TIRE QUE SUR LES AÉRIENS.',
+    desc: 'Missiles à tête chercheuse. Dégâts massifs, parfait contre un blindage aérien lourd, dépassé par un essaim véloce. NE TIRE QUE SUR LES AÉRIENS.',
     upgrades: [
       { cost: 140, damage: 1.40, rate: 1.12, range: 1.06 },
       { cost: 224, damage: 1.45, missiles: 1, turnRate: 1.15 },
@@ -449,7 +464,11 @@ export const ENEMIES = {
   swarm: {
     id: 'swarm', name: 'ESSAIM', air: false, hp: 14, speed: 2.2, armor: 0,
     gold: 2, leak: 1, radius: 6, color: '#f0d24b', shape: 'dot',
-    packSize: 8, unlock: 4
+    // spread : décalage latéral ×2.4 par rapport à la normale — vraiment
+    // étalés sur le couloir, un sniper qui perce en ligne droite n'en
+    // touche qu'une poignée. Point faible du sniper, cible de choix pour
+    // la mitrailleuse (cadence) et le tesla (chaîne entre cibles proches).
+    packSize: 8, spread: 2.4, unlock: 4
   },
   healer: {
     id: 'healer', name: 'SOIGNEUR', air: false, hp: 90, speed: 1.3, armor: 2,
@@ -469,12 +488,21 @@ export const ENEMIES = {
   splitling: {
     id: 'splitling', name: 'ÉCLAT', air: false, hp: 34, speed: 2.4, armor: 0,
     gold: 3, leak: 1, radius: 8, color: '#b878ff', shape: 'diamond',
-    unlock: 99, spawnOnly: true
+    spread: 1.8, unlock: 99, spawnOnly: true
   },
   juggernaut: {
     id: 'juggernaut', name: 'JUGGERNAUT', air: false, hp: 1400, speed: 0.8, armor: 20,
     gold: 140, leak: 5, radius: 24, color: '#e46363', shape: 'boss',
     boss: true, unlock: 10
+  },
+  colossus: {
+    id: 'colossus', name: 'COLOSSE', air: false, hp: 300, speed: 0.95, armor: 22,
+    gold: 30, leak: 3, radius: 17, color: '#7a5230', shape: 'hex',
+    // Élite blindée non-boss, au sol : la cible de prédilection du sniper
+    // (ignore l'armure) et du lance-flamme (la brûlure aussi), le
+    // cauchemar de la mitrailleuse (dégâts par coup trop faibles, l'armure
+    // en rase l'essentiel).
+    unlock: 11
   },
 
   // ---- AIR ----
@@ -488,9 +516,20 @@ export const ENEMIES = {
     gold: 9, leak: 1, radius: 8, color: '#f0d24b', shape: 'wasp',
     unlock: 6
   },
+  hornet: {
+    id: 'hornet', name: 'FRELON', air: true, hp: 20, speed: 3.9, armor: 0,
+    gold: 4, leak: 1, radius: 7, color: '#ff9a3c', shape: 'wasp',
+    // Essaim aérien, pendant volant d'ESSAIM : trop nombreux et rapides
+    // pour la DCA (verrouillage lent, un missile par cible), largement
+    // gérés par la mitrailleuse (cadence, touche l'air) à moindre coût.
+    packSize: 5, spread: 2.2, unlock: 13
+  },
   bomber: {
-    id: 'bomber', name: 'BOMBARDIER', air: true, hp: 210, speed: 1.1, armor: 6,
+    id: 'bomber', name: 'BOMBARDIER', air: true, hp: 210, speed: 1.1, armor: 11,
     gold: 24, leak: 3, radius: 17, color: '#b8b8b8', shape: 'bomber',
+    // Blindage aérien lourd : la cible de prédilection de la DCA (dégâts
+    // massifs par missile, l'armure ne compte presque pas face à un coup
+    // pareil) — au contraire, le cauchemar de la mitrailleuse.
     unlock: 9
   },
   raptor: {

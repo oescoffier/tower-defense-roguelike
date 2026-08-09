@@ -19,6 +19,7 @@ import { drawCards, applyCard, draftDue, CARD_BY_ID, cardArchetypes } from './ca
 import { Save } from './save.js';
 import * as UI from './ui.js';
 import { A, $, $$ } from './ui.js';
+import { createCamera, computeStageTransform, zoomAt, panBy, shiftCamera } from './camera.js';
 
 const STEP = 1 / 60;
 
@@ -126,10 +127,11 @@ const game = {
           hpMult: this.waveData ? this.waveData.hpMult : 1,
           speedMult: this.waveData ? this.waveData.speedMult : 1
         });
-        child.x = e.x + (i - 0.5) * 14;
-        child.y = e.y + (Math.random() - 0.5) * 14;
+        child._px = e.x + (i - 0.5) * 14;
+        child._py = e.y + (Math.random() - 0.5) * 14;
         child.spawnAnim = 0.5;
         child._pickTarget();
+        child._applyOffset();
         this.enemies.push(child);
       }
       this.vfx.floatText(e.x, e.y - 24, 'SCINDÉ', PALETTE.violet, 14, 0.8);
@@ -221,9 +223,15 @@ function startRun(opts = {}) {
   game.mods = tuto ? Object.create(null) : computeMods(tree, save.unlocked);
   game.mods.__survivorBonus = 0;
 
+  // Une partie précédente a pu agrandir la carte (Grid.grow) : on repart
+  // toujours de la taille d'origine.
+  GRID.cols = GRID.baseCols;
+  GRID.rows = GRID.baseRows;
+
   game.grid = tuto
     ? new Grid(0, TUTORIAL_MAP)
     : new Grid((Math.random() * 0xffffff) | 0);
+  game.camera = createCamera(GRID.w, GRID.h);
   game.towers = [];
   game.enemies = [];
   game.projectiles = [];
@@ -352,11 +360,13 @@ function growMap() {
 
   for (const e of game.enemies) {
     if (e.air || e.dead) continue;
-    e.x += off; e.y += off;
+    e._px += off; e._py += off;
     e._pickTarget();
+    e._applyOffset();
   }
 
   game.projectiles.length = 0;
+  shiftCamera(game.camera, off, off);
 
   renderer.resize();
   fitStage();
@@ -980,6 +990,41 @@ function bindGameInputs() {
     else { game.selected = null; UI.renderTowerPanel(game, null); }
   });
 
+  // ---- Caméra : molette pour zoomer (centré sur le curseur), clic
+  // molette + glisser pour se déplacer une fois zoomé. Le cadre lui-même
+  // ne bouge jamais, voir fitStage().
+  canvas.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    if (!game.camera) return;
+    const r = canvas.getBoundingClientRect();
+    const worldX = (ev.clientX - r.left) / r.width * GRID.w;
+    const worldY = (ev.clientY - r.top) / r.height * GRID.h;
+    const factor = ev.deltaY < 0 ? 1.18 : 1 / 1.18;
+    zoomAt(game.camera, worldX, worldY, game.camera.zoom * factor);
+    fitStage();
+  }, { passive: false });
+
+  let panning = false, panLastX = 0, panLastY = 0;
+  canvas.addEventListener('mousedown', (ev) => {
+    if (ev.button !== 1) return;
+    ev.preventDefault();
+    panning = true;
+    panLastX = ev.clientX; panLastY = ev.clientY;
+    canvas.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', (ev) => {
+    if (!panning || !game.camera) return;
+    const dx = ev.clientX - panLastX, dy = ev.clientY - panLastY;
+    panLastX = ev.clientX; panLastY = ev.clientY;
+    panBy(game.camera, dx, dy, game.camera.lastK || 1);
+    fitStage();
+  });
+  window.addEventListener('mouseup', (ev) => {
+    if (ev.button !== 1 || !panning) return;
+    panning = false;
+    canvas.style.cursor = '';
+  });
+
   $('#btn-wave').addEventListener('click', startWave);
 
   $('#btn-pause').addEventListener('click', togglePause);
@@ -1280,6 +1325,14 @@ function bindHelpModal() {
 //  Mise à l'échelle du plateau
 // ============================================================
 
+/**
+ * Cadre le plateau dans l'espace disponible. Le CADRE (zone visible à
+ * l'écran) ne change jamais de taille : à zoom 1 (par défaut), toute la
+ * carte y tient, exactement comme avant — c'est le contenu qui rétrécit
+ * quand la carte grandit (Grid.grow). game.camera.zoom permet de
+ * resserrer la vue au-dessus de ce niveau de base (molette) et de s'y
+ * déplacer (glisser à la molette enfoncée), toujours borné à la carte.
+ */
 function fitStage() {
   const wrap = document.querySelector('.stage-wrap');
   const stage = $('#stage');
@@ -1287,8 +1340,14 @@ function fitStage() {
   const availW = wrap.clientWidth;
   const availH = wrap.clientHeight - 46;
   if (availW <= 0 || availH <= 0) return;
-  const k = Math.min(1, availW / (GRID.w + 6), availH / (GRID.h + 6));
-  stage.style.transform = `scale(${k})`;
+  if (!game.camera) game.camera = createCamera(GRID.w, GRID.h);
+
+  const { k, tx, ty } = computeStageTransform({
+    availW, availH, gridW: GRID.w, gridH: GRID.h, camera: game.camera
+  });
+  game.camera.lastK = k;
+
+  stage.style.transform = `scale(${k}) translate(${tx}px, ${ty}px)`;
   stage.style.marginLeft = stage.style.marginRight = `${-(GRID.w * (1 - k)) / 2}px`;
   stage.style.marginTop = stage.style.marginBottom = `${-(GRID.h * (1 - k)) / 2}px`;
   const bottom = document.querySelector('.stage-bottom');

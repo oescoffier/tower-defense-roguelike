@@ -59,28 +59,44 @@ export class Enemy {
     } else {
       const spawns = grid.spawns || [grid.spawn];
       const sp = spawns[Math.floor(Math.random() * spawns.length)];
-      this.x = grid.cx(sp.x);
-      this.y = grid.cy(sp.y);
+      // _px/_py : position "logique" qui suit le flow field au centre du
+      // couloir (utilisée pour tout le pathing). x/y (publiques, lues par
+      // le rendu et le combat) y ajoutent un décalage latéral fixe pour que
+      // les ennemis ne marchent pas tous en file indienne sur la même
+      // ligne — décisif contre un sniper qui perce en ligne droite : un
+      // essaim vraiment étalé échappe à un tir qui n'en aligne que
+      // quelques-uns, alors qu'un couloir à sens unique se ferait
+      // entièrement traverser par un seul tir.
+      this._px = grid.cx(sp.x);
+      this._py = grid.cy(sp.y);
       this.angle = 0;
       this.target = null;
       this.wobble = Math.random() * Math.PI * 2;
-      // Décalage latéral pour éviter que tout le monde marche sur la même ligne
-      this.offset = (Math.random() - 0.5) * GRID.cell * 0.38;
+      this.offset = (Math.random() - 0.5) * GRID.cell * 0.38 * (def.spread || 1);
+      this.x = this._px; this.y = this._py;
       this._pickTarget();
+      this._applyOffset();
     }
   }
 
   // ----------------------------------------------------------
   _pickTarget() {
     const g = this.grid;
-    const gx = Math.floor(this.x / g.cell);
-    const gy = Math.floor(this.y / g.cell);
+    const gx = Math.floor(this._px / g.cell);
+    const gy = Math.floor(this._py / g.cell);
     const n = g.nextStep(gx, gy);
     if (n) {
       this.target = { x: g.cx(n.x), y: g.cy(n.y), gx: n.x, gy: n.y };
     } else {
       this.target = null;
     }
+  }
+
+  /** Reprojette x/y (position publique) depuis _px/_py + le décalage latéral. */
+  _applyOffset() {
+    const perp = this.angle + Math.PI / 2;
+    this.x = this._px + Math.cos(perp) * this.offset;
+    this.y = this._py + Math.sin(perp) * this.offset;
   }
 
   /** Appelé quand la grille change : on revalide la case visée. */
@@ -91,8 +107,8 @@ export class Enemy {
     else {
       // La case visée reste libre, mais un chemin plus court existe peut-être.
       const g = this.grid;
-      const gx = Math.floor(this.x / g.cell);
-      const gy = Math.floor(this.y / g.cell);
+      const gx = Math.floor(this._px / g.cell);
+      const gy = Math.floor(this._py / g.cell);
       const cur = g.dist[g.idx(gx, gy)];
       const tgt = g.dist[g.idx(this.target.gx, this.target.gy)];
       if (tgt === -1 || (cur !== -1 && tgt >= cur)) this._pickTarget();
@@ -184,26 +200,27 @@ export class Enemy {
       if (!this.target) {
         // Arrivé sur la base (ou totalement enfermé, ce que la validation interdit)
         const bx = g.cx(g.base.x), by = g.cy(g.base.y);
-        if (Math.hypot(this.x - bx, this.y - by) < g.cell * 0.6) { this.leakOut(game); return; }
+        if (Math.hypot(this._px - bx, this._py - by) < g.cell * 0.6) { this.leakOut(game); return; }
         return;
       }
     }
     const tx = this.target.x, ty = this.target.y;
-    const dx = tx - this.x, dy = ty - this.y;
+    const dx = tx - this._px, dy = ty - this._py;
     const d = Math.hypot(dx, dy);
     const step = speed * g.cell * dt;
     this.wobble += dt * 9;
 
     if (d <= step || d < 0.6) {
-      this.x = tx; this.y = ty;
+      this._px = tx; this._py = ty;
       const gx = this.target.gx, gy = this.target.gy;
-      if (gx === g.base.x && gy === g.base.y) { this.leakOut(game); return; }
+      if (gx === g.base.x && gy === g.base.y) { this._applyOffset(); this.leakOut(game); return; }
       this._pickTarget();
     } else {
-      this.x += (dx / d) * step;
-      this.y += (dy / d) * step;
+      this._px += (dx / d) * step;
+      this._py += (dy / d) * step;
       this.angle = Math.atan2(dy, dx);
     }
+    this._applyOffset();
   }
 
   _heal(dt, game) {

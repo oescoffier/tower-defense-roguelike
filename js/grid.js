@@ -442,11 +442,12 @@ export class Grid {
     return spawns.every((s) => d[this.idx(s.x, s.y)] !== -1);
   }
 
-  /** Recalcule le champ de distance et le chemin de référence spawn→base. */
+  /** Recalcule le champ de distance et un chemin de référence par spawn. */
   recompute() {
     this.prevPath = this.path;
     this.computeDistance(null, this.dist);
-    this.path = this.tracePath(this.spawn.x, this.spawn.y);
+    this.paths = (this.spawns || [this.spawn]).map((s) => this.tracePath(s.x, s.y));
+    this.path = this.paths[0];
     this.pathAge = 0;
     return this.path;
   }
@@ -573,7 +574,19 @@ export class Grid {
     this.spawns = this.spawns.map((s) => ({ x: s.x + off, y: s.y + off }));
     this.spawn = this.spawns[0];
 
+    // L'anneau tout juste ajouté n'est pas un vide parfait : quelques
+    // cailloux y apparaissent aussi, comme sur la carte d'origine.
+    this._scatterRingRocks();
     const addedSpawn = this._addRingSpawn();
+
+    // Garantit qu'un chemin existe toujours vers TOUS les spawns malgré les
+    // nouveaux cailloux, en rouvrant des roches au hasard si besoin (même
+    // filet de sécurité que generate()).
+    let guard = 0;
+    while (!this._reachable(null) && guard++ < 600) {
+      const i = Math.floor(Math.random() * this.cells.length);
+      if (this.cells[i] === CELL.ROCK) this.cells[i] = CELL.EMPTY;
+    }
 
     this.dist = new Int32Array(this.cols * this.rows).fill(-1);
     this.flow = new Int8Array(this.cols * this.rows * 2);
@@ -581,6 +594,20 @@ export class Grid {
     this.buildAirPath();
 
     return { addedSpawn };
+  }
+
+  /** Parsème quelques cailloux sur l'anneau extérieur fraîchement ajouté. */
+  _scatterRingRocks() {
+    for (let x = 0; x < this.cols; x++) {
+      for (const y of [0, this.rows - 1]) {
+        if (Math.random() < MAP_GROWTH.ringRockChance) this.set(x, y, CELL.ROCK);
+      }
+    }
+    for (let y = 1; y < this.rows - 1; y++) {
+      for (const x of [0, this.cols - 1]) {
+        if (Math.random() < MAP_GROWTH.ringRockChance) this.set(x, y, CELL.ROCK);
+      }
+    }
   }
 
   /**
@@ -607,7 +634,18 @@ export class Grid {
     }
     if (!ring.length) return null;
 
-    const pick = ring[Math.floor(Math.random() * ring.length)];
+    // Trop près de la base, ça ne laisserait aucun temps de réaction : on
+    // exige une distance minimale, avec repli sur la case la plus éloignée
+    // s'il n'existe vraiment aucune candidate assez loin (petite carte).
+    const distToBase = (c) => Math.hypot(c.x - this.base.x, c.y - this.base.y);
+    let candidates = ring.filter((c) => distToBase(c) >= MAP_GROWTH.minSpawnDistFromBase);
+    if (!candidates.length) {
+      let best = ring[0], bestD = -1;
+      for (const c of ring) { const d = distToBase(c); if (d > bestD) { bestD = d; best = c; } }
+      candidates = [best];
+    }
+
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
     this.set(pick.x, pick.y, CELL.SPAWN);
     this.spawns.push(pick);
     return pick;

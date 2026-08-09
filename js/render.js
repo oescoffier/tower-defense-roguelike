@@ -12,6 +12,12 @@ import { drawTutorialCell } from './tutorial.js';
 const C = GRID.cell;
 const TAU = Math.PI * 2;
 
+function hexToRgba(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -199,11 +205,18 @@ export class Renderer {
     ctx.restore();
   }
 
-  /** Chemin au sol : ruban animé + flèches de direction. */
+  /** Chemins au sol : un ruban animé par point de spawn, chacun sa couleur. */
   _drawGroundPath(ctx, game, t) {
     const grid = game.grid;
-    const path = grid.path;
+    const paths = grid.paths || (grid.path ? [grid.path] : []);
+    for (let i = 0; i < paths.length; i++) {
+      this._drawOnePath(ctx, grid, paths[i], PALETTE.pathColors[i % PALETTE.pathColors.length], t);
+    }
+  }
+
+  _drawOnePath(ctx, grid, path, color, t) {
     if (!path || path.length < 2) return;
+    const tint = hexToRgba(color, 0.16);
 
     ctx.save();
     ctx.lineJoin = 'round';
@@ -225,7 +238,7 @@ export class Renderer {
     ctx.lineWidth = C * 0.68;
     trace(); ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(13,103,255,0.16)';
+    ctx.strokeStyle = tint;
     ctx.lineWidth = C * 0.68;
     trace(); ctx.stroke();
 
@@ -233,7 +246,7 @@ export class Renderer {
     const reveal = grid.pathAge;
     const total = path.length - 1;
     const shown = Math.max(1, Math.floor(total * reveal));
-    ctx.strokeStyle = PALETTE.line;
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2.4;
     ctx.globalAlpha = 0.8;
     ctx.setLineDash([10, 8]);
@@ -248,7 +261,7 @@ export class Renderer {
     // Front lumineux du retracé
     if (reveal < 1 && shown < total) {
       const p = path[shown];
-      ctx.fillStyle = PALETTE.line;
+      ctx.fillStyle = color;
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
       ctx.arc(grid.cx(p.x), grid.cy(p.y), 6 + Math.sin(t * 20) * 2, 0, TAU);
@@ -258,7 +271,7 @@ export class Renderer {
 
     // Chevrons de direction
     ctx.globalAlpha = 0.85;
-    ctx.strokeStyle = PALETTE.line;
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2.4;
     const flow = (t * 1.5) % 1;
     for (let i = 0; i < shown; i++) {
@@ -320,20 +333,23 @@ export class Renderer {
 
   _drawSpawn(ctx, game, t) {
     const g = game.grid;
+    const spawns = g.spawns || [g.spawn];
     ctx.save();
-    for (const s of g.spawns || [g.spawn]) {
+    for (let i = 0; i < spawns.length; i++) {
+      const s = spawns[i];
+      const color = PALETTE.pathColors[i % PALETTE.pathColors.length];
       const x = g.cx(s.x), y = g.cy(s.y);
-      ctx.strokeStyle = PALETTE.danger;
+      ctx.strokeStyle = color;
       ctx.lineWidth = 2;
-      for (let i = 0; i < 3; i++) {
-        const p = ((t * 0.7 + i / 3) % 1);
+      for (let k = 0; k < 3; k++) {
+        const p = ((t * 0.7 + k / 3) % 1);
         ctx.globalAlpha = (1 - p) * 0.6;
         ctx.beginPath();
         ctx.arc(x, y, 6 + p * 26, 0, TAU);
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
-      ctx.fillStyle = PALETTE.danger;
+      ctx.fillStyle = color;
       ctx.fillRect(x - 7, y - 7, 14, 14);
       ctx.strokeStyle = PALETTE.line;
       ctx.strokeRect(x - 7, y - 7, 14, 14);

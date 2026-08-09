@@ -5,7 +5,7 @@
 //  (Grid.grow() : +1 case tout autour toutes les MAP_GROWTH.every
 //  vagues, avec de nouveaux points de spawn possibles sur l'anneau).
 // ============================================================
-import { GRID, CELL, MAP_GROWTH, waveCount, waveLeakMult } from '../js/config.js';
+import { GRID, CELL, MAP_GROWTH, PALETTE, waveCount, waveLeakMult } from '../js/config.js';
 import { Grid } from '../js/grid.js';
 import { Enemy } from '../js/enemies.js';
 
@@ -102,7 +102,9 @@ console.log('\n=== NOUVEAUX POINTS DE SPAWN SUR L\'ANNEAU ===\n');
     if (grid.spawns.length !== before) fail(`un spawn a été ajouté malgré un tirage défavorable (${before} → ${grid.spawns.length})`);
     else console.log(`[PASS] tirage défavorable (0.99) → aucun nouveau spawn (${grid.spawns.length} au total)`);
 
-    Math.random = () => 0; // < spawnChance : doit en ajouter un
+    // 0.4 : sous spawnChance (0.55, donc un spawn est ajouté) mais au-dessus
+    // de ringRockChance (0.32, donc l'anneau reste sans caillou et libre).
+    Math.random = () => 0.4;
     grid.grow();
     if (grid.spawns.length !== before + 1) {
       fail(`aucun nouveau spawn ajouté malgré un tirage favorable (toujours ${grid.spawns.length})`);
@@ -113,9 +115,74 @@ console.log('\n=== NOUVEAUX POINTS DE SPAWN SUR L\'ANNEAU ===\n');
       const onRing = added.x === 0 || added.y === 0 || added.x === grid.cols - 1 || added.y === grid.rows - 1;
       if (!onRing) problems.push('le nouveau spawn n\'est pas sur l\'anneau extérieur fraîchement ajouté');
       if (grid.canPlace(added.x, added.y).ok) problems.push('canPlace autorise à construire directement sur un point de spawn');
+      const distToBase = Math.hypot(added.x - grid.base.x, added.y - grid.base.y);
+      if (distToBase < MAP_GROWTH.minSpawnDistFromBase) problems.push(`trop près de la base (${distToBase.toFixed(1)} case(s), minimum ${MAP_GROWTH.minSpawnDistFromBase})`);
       if (problems.length) fail(`nouveau spawn : ${problems.join(' · ')}`);
-      else console.log(`[PASS] tirage favorable (0) → nouveau spawn en (${added.x},${added.y}), sur l'anneau, non constructible`);
+      else console.log(`[PASS] tirage favorable (0) → nouveau spawn en (${added.x},${added.y}), sur l'anneau, à ${distToBase.toFixed(1)} cases de la base, non constructible`);
     }
+  } finally {
+    Math.random = realRandom;
+  }
+}
+
+// ============================================================
+//  L'anneau fraîchement ajouté n'est pas un vide parfait : des cailloux
+//  y apparaissent aussi (vérifié statistiquement sur plusieurs extensions,
+//  Math.random réel).
+// ============================================================
+console.log('\n=== CAILLOUX SUR LES NOUVEAUX ANNEAUX ===\n');
+{
+  GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
+  const grid = new Grid(5);
+  let rockCells = 0, ringCells = 0;
+  for (let cycle = 0; cycle < 6; cycle++) {
+    grid.grow();
+    for (let x = 0; x < grid.cols; x++) {
+      for (const y of [0, grid.rows - 1]) {
+        ringCells++;
+        if (grid.cells[grid.idx(x, y)] === CELL.ROCK) rockCells++;
+      }
+    }
+    for (let y = 1; y < grid.rows - 1; y++) {
+      for (const x of [0, grid.cols - 1]) {
+        ringCells++;
+        if (grid.cells[grid.idx(x, y)] === CELL.ROCK) rockCells++;
+      }
+    }
+  }
+  if (rockCells === 0) fail(`aucun caillou trouvé sur ${ringCells} cases d'anneau après 6 extensions — grow() n'en génère plus`);
+  else console.log(`[PASS] ${rockCells}/${ringCells} cases d'anneau sont des cailloux après 6 extensions, carte toujours praticable`);
+}
+
+// ============================================================
+//  Un chemin distinct (et une couleur distincte) par point de spawn.
+// ============================================================
+console.log('\n=== CHEMINS MULTIPLES PAR SPAWN ===\n');
+{
+  const realRandom = Math.random;
+  try {
+    GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
+    const grid = new Grid(11);
+    Math.random = () => 0.4;
+    grid.grow();
+    grid.grow();
+    Math.random = realRandom;
+
+    const problems = [];
+    if (!grid.paths || grid.paths.length !== grid.spawns.length) {
+      problems.push(`grid.paths a ${grid.paths ? grid.paths.length : 0} entrée(s), attendu ${grid.spawns.length} (un par spawn)`);
+    } else {
+      for (let i = 0; i < grid.spawns.length; i++) {
+        const p = grid.paths[i];
+        if (!p || p.length < 2) problems.push(`spawn #${i} : chemin vide ou trop court`);
+        else if (p[0].x !== grid.spawns[i].x || p[0].y !== grid.spawns[i].y) problems.push(`spawn #${i} : le chemin ne part pas de son propre spawn`);
+      }
+    }
+    if (PALETTE.pathColors.length < MAP_GROWTH.maxSpawns) {
+      problems.push(`seulement ${PALETTE.pathColors.length} couleurs pour jusqu'à ${MAP_GROWTH.maxSpawns} spawns possibles`);
+    }
+    if (problems.length) fail(`chemins multiples : ${problems.join(' · ')}`);
+    else console.log(`[PASS] ${grid.spawns.length} spawn(s) → ${grid.paths.length} chemin(s) distincts, chacun avec sa propre couleur disponible`);
   } finally {
     Math.random = realRandom;
   }
@@ -131,18 +198,22 @@ console.log('\n=== RÉPARTITION DES ENNEMIS SUR PLUSIEURS SPAWNS ===\n');
   try {
     GRID.cols = ORIG_COLS; GRID.rows = ORIG_ROWS;
     const grid = new Grid(9);
-    Math.random = () => 0; // force l'ajout d'un 2e spawn
+    Math.random = () => 0.4; // force l'ajout d'un 2e spawn, sans caillou sur l'anneau
     grid.grow();
     Math.random = realRandom;
 
     if (grid.spawns.length < 2) {
       fail('setup : la grille n\'a toujours qu\'un seul spawn, impossible de tester la répartition');
     } else {
+      // _px/_py est la position logique de pathing (non décalée) : c'est
+      // elle qui doit tomber exactement sur un spawn connu. x/y (publique)
+      // porte en plus le décalage latéral anti-file-indienne, donc ne peut
+      // plus être comparée au pixel près.
       const seen = new Set();
       for (let i = 0; i < 200; i++) {
         const e = new Enemy('grunt', grid, {});
-        const match = grid.spawns.find((s) => Math.abs(e.x - grid.cx(s.x)) < 0.01 && Math.abs(e.y - grid.cy(s.y)) < 0.01);
-        if (!match) fail(`ennemi #${i} apparaît en (${e.x},${e.y}), qui ne correspond à aucun spawn connu`);
+        const match = grid.spawns.find((s) => Math.abs(e._px - grid.cx(s.x)) < 0.01 && Math.abs(e._py - grid.cy(s.y)) < 0.01);
+        if (!match) fail(`ennemi #${i} apparaît en (${e._px},${e._py}), qui ne correspond à aucun spawn connu`);
         else seen.add(`${match.x},${match.y}`);
       }
       if (seen.size < 2) fail(`sur 200 ennemis générés, un seul point de spawn a été utilisé (${seen.size}) — la répartition aléatoire ne fonctionne pas`);

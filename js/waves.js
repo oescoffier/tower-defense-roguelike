@@ -5,8 +5,8 @@
 import { ENEMIES, WAVE, waveHpMult, waveCount, waveAirRatio } from './config.js';
 import { Rng } from './rng.js';
 
-const GROUND_POOL = ['grunt', 'runner', 'brute', 'swarm', 'healer', 'shielder', 'splitter'];
-const AIR_POOL = ['drone', 'wasp', 'bomber'];
+const GROUND_POOL = ['grunt', 'runner', 'brute', 'swarm', 'healer', 'shielder', 'splitter', 'colossus'];
+const AIR_POOL = ['drone', 'wasp', 'bomber', 'hornet'];
 
 /** Poids d'apparition d'un type à une vague donnée. */
 function weightFor(id, wave) {
@@ -21,9 +21,11 @@ function weightFor(id, wave) {
     case 'healer': return Math.min(12, 3 + age * 0.5);
     case 'shielder': return Math.min(20, 5 + age * 0.9);
     case 'splitter': return Math.min(18, 4 + age * 0.8);
+    case 'colossus': return Math.min(16, 3 + age * 0.6);
     case 'drone': return Math.max(8, 34 - wave * 0.6);
     case 'wasp': return Math.min(28, 9 + age * 1.2);
     case 'bomber': return Math.min(24, 6 + age * 1.0);
+    case 'hornet': return Math.min(20, 6 + age * 0.9);
     default: return 1;
   }
 }
@@ -60,9 +62,20 @@ export function buildWave(wave) {
     const wantAir = airBudget > 0 && (rng.next() < 0.45 || remaining <= airBudget);
     if (wantAir && airPool.length) {
       const pick = rng.weighted(airPool);
-      spawns.push({ type: pick.id, at: t });
-      airBudget--; remaining--;
-      t += gap * rng.float(0.75, 1.25);
+      const adef = ENEMIES[pick.id];
+      if (adef.packSize) {
+        // Essaim aérien : arrive groupé, comme un essaim au sol.
+        const n = Math.min(remaining, adef.packSize);
+        for (let i = 0; i < n; i++) {
+          spawns.push({ type: pick.id, at: t + i * 0.09 });
+        }
+        remaining -= n; airBudget -= n;
+        t += gap * 1.4;
+      } else {
+        spawns.push({ type: pick.id, at: t });
+        airBudget--; remaining--;
+        t += gap * rng.float(0.75, 1.25);
+      }
     } else if (groundPool.length) {
       const pick = rng.weighted(groundPool);
       const def = ENEMIES[pick.id];

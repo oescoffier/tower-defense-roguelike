@@ -660,6 +660,11 @@ b { font-weight: 700; }
   gap: 9px;
   align-items: center;
   justify-content: center;
+  /* Le cadre ne bouge jamais : au-delà du zoom de base, le contenu de
+     #stage (scale() + translate() dans fitStage()) déborde de sa propre
+     boîte — on le rogne ici plutôt que de laisser la carte "fuir" par
+     dessus le reste de l'interface. */
+  overflow: hidden;
 }
 
 .stage {
