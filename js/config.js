@@ -517,14 +517,28 @@ export const ENEMIES = {
     unlock: 11
   },
   monolith: {
-    id: 'monolith', name: 'MONOLITHE', air: false, hp: 260, speed: 0.85, armor: 8,
+    id: 'monolith', name: 'MONOLITHE', air: false, hp: 260, speed: 0.85, armor: 14,
     gold: 40, leak: 4, radius: 18, color: '#4a4a6a', shape: 'shield',
     // Plaque réactive (hitCap) : AUCUN coup unique, aussi énorme soit-il
     // (critique, exécution, obus), ne peut jamais lui retirer plus que 5%
-    // de ses PV max d'un coup. Ignorer l'armure ou faire un gros dégât
-    // ponctuel ne sert à rien ici — seul le DPS soutenu (mitrailleuse,
-    // tesla, brûlure) en vient à bout. Le vrai mur contre le sniper.
-    hitCap: 0.05, unlock: 14
+    // de ses PV max d'un coup — le sniper (qui ignore l'armure) n'a donc
+    // aucune prise dessus. L'armure élevée punit en plus la mitrailleuse
+    // (soustraction à plat sur des petits dégâts par coup). Seul le DPS
+    // soutenu venant d'ailleurs (tesla, brûlure, mortier) en vient à bout.
+    // Débloqué plus tôt et plus fréquent qu'avant pour peser sur le duo
+    // sniper+mitrailleuse dès le milieu de partie.
+    hitCap: 0.05, unlock: 11
+  },
+  phalanx: {
+    id: 'phalanx', name: 'PHALANGE', air: false, hp: 150, speed: 1.05, armor: 14,
+    gold: 20, leak: 2, radius: 14, color: '#c9a227', shape: 'hex',
+    // Bataillon blindé et étalé. L'armure écrase les petits dégâts de la
+    // mitrailleuse (soustraction à plat) ; le nombre + l'étalement latéral
+    // (comme l'essaim) dépasse la cadence lente du sniper avant qu'il
+    // n'ait fini le paquet — et l'armure ne le ralentit pas puisqu'il
+    // l'ignore, mais il ne peut tuer qu'une poignée d'unités par tir.
+    // Cible de choix pour les armes de zone/DOT (mortier, tesla, flamme).
+    packSize: 6, spread: 2.0, unlock: 9
   },
   ram: {
     id: 'ram', name: 'BÉLIER', air: false, hp: 190, speed: 1.15, armor: 6,

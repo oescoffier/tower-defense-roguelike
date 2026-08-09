@@ -115,7 +115,10 @@ export class Projectile {
     this.x = this.sx + (this.tx - this.sx) * p;
     this.y = this.sy + (this.ty - this.sy) * p;
     this.alt = Math.sin(p * Math.PI) * this.arcHeight;
-    if (this.t % 0.05 < dt) game.vfx.smoke(this.x, this.y - this.alt, '#2e2e2e', 1);
+    // Traînée de fumée moins fréquente : avec plusieurs mortiers (et
+    // mortar.salvo/carpet qui envoient plusieurs obus à la fois), le
+    // nombre d'obus en vol simultanés peut vite grimper.
+    if (this.t % 0.09 < dt) game.vfx.smoke(this.x, this.y - this.alt, '#2e2e2e', 1);
     if (p >= 1) {
       this.dead = true;
       this.onHit(game, null);
