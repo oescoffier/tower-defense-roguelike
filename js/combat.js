@@ -21,7 +21,12 @@ export function canHit(enemy, mask) {
 export function enemiesInRange(game, x, y, radiusPx, mask) {
   const out = [];
   const r2 = radiusPx * radiusPx;
-  for (const e of game.enemies) {
+  // game.enemyHash (facultatif) réduit le parcours aux cases voisines au
+  // lieu de TOUS les ennemis — décisif avec beaucoup de tours, appelée
+  // une fois par tour et par frame pour le ciblage. Simple filtre grossier :
+  // le test de distance exact ci-dessous reste inchangé.
+  const candidates = game.enemyHash ? game.enemyHash.queryCircle(x, y, radiusPx) : game.enemies;
+  for (const e of candidates) {
     if (e.dead || !canHit(e, mask)) continue;
     const dx = e.x - x, dy = e.y - y;
     if (dx * dx + dy * dy <= r2) out.push(e);
@@ -226,12 +231,18 @@ export class Projectile {
   }
 }
 
+// Rayon max plausible d'un ennemi (juggernaut=24) + marge : sert à élargir
+// les requêtes spatiales de segmentHit/rayHits pour ne jamais rater une
+// cible dont le CENTRE est hors segment mais le CONTOUR le touche.
+const MAX_ENEMY_RADIUS_PAD = 30;
+
 /** Premier ennemi touché par le segment [x1,y1]→[x2,y2]. */
 function segmentHit(game, x1, y1, x2, y2, mask, ignore) {
   let best = null, bestT = Infinity;
   const dx = x2 - x1, dy = y2 - y1;
   const len2 = dx * dx + dy * dy || 1;
-  for (const e of game.enemies) {
+  const candidates = game.enemyHash ? game.enemyHash.querySegment(x1, y1, x2, y2, MAX_ENEMY_RADIUS_PAD) : game.enemies;
+  for (const e of candidates) {
     if (e.dead || !canHit(e, mask)) continue;
     if (ignore && ignore.has(e.id)) continue;
     const t = Math.max(0, Math.min(1, ((e.x - x1) * dx + (e.y - y1) * dy) / len2));
@@ -247,7 +258,8 @@ function rayHits(game, x1, y1, x2, y2, mask) {
   const hits = [];
   const dx = x2 - x1, dy = y2 - y1;
   const len2 = dx * dx + dy * dy || 1;
-  for (const e of game.enemies) {
+  const candidates = game.enemyHash ? game.enemyHash.querySegment(x1, y1, x2, y2, MAX_ENEMY_RADIUS_PAD) : game.enemies;
+  for (const e of candidates) {
     if (e.dead || !canHit(e, mask)) continue;
     const t = ((e.x - x1) * dx + (e.y - y1) * dy) / len2;
     if (t < 0 || t > 1) continue;

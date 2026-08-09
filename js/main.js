@@ -20,6 +20,7 @@ import { Save } from './save.js';
 import * as UI from './ui.js';
 import { A, $, $$ } from './ui.js';
 import { createCamera, computeStageTransform, zoomAt, panBy, shiftCamera } from './camera.js';
+import { SpatialHash } from './spatial.js';
 
 const STEP = 1 / 60;
 
@@ -48,6 +49,10 @@ const game = {
   enemies: [],
   projectiles: [],
   vfx: new Vfx(),
+  // Reconstruite une fois par frame (step()) : évite qu'un ciblage de tour
+  // ou une balle de mitraillette n'ait à parcourir TOUS les ennemis à
+  // chaque frame — voir js/spatial.js.
+  enemyHash: new SpatialHash(GRID.cell * 2),
   mods: {},
   commanderChoice: null,
 
@@ -573,6 +578,9 @@ function step(dt) {
   for (let i = game.enemies.length - 1; i >= 0; i--) {
     if (game.enemies[i].dead) game.enemies.splice(i, 1);
   }
+  // Reconstruite ici (post-déplacement, post-purge) : le ciblage des tours
+  // et la collision des balles s'appuient dessus juste après.
+  game.enemyHash.build(game.enemies);
 
   // Tours
   for (const t of game.towers) t.update(dt, game);
