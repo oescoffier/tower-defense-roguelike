@@ -635,6 +635,20 @@ export const WAVE = {
 };
 
 export const ECONOMY = {
+  // --- Escalade du prix des tourelles ---
+  // Chaque tourelle deja posee rencherit la suivante. Sans cela les couts
+  // restent fixes alors que les revenus sont multiplies par ~17 entre la
+  // vague 5 et la vague 35 : le joueur finit par remplir la carte sans
+  // reflechir. Les `costFree` premieres restent au tarif de base pour ne
+  // pas etrangler le debut de partie.
+  costFree: 10,
+  costGrowth: 1.15,
+  costCap: 400,          // garde-fou : au-dela le prix n'a plus de sens
+
+  // Plafond absolu des interets par vague : ils composent, donc sans
+  // borne ils divergent des qu'on cumule un gros capital.
+  interestCap: 400,
+
   startGold: 250,
   startLives: 20,
   waveBonusBase: 20,

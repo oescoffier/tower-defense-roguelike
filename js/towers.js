@@ -3,7 +3,7 @@
 //  × modificateurs de l'arbre), ciblage, tir et rendu.
 // ============================================================
 
-import { TOWERS, COMMANDERS, TARGET, PALETTE, GRID, PRIORITY, VARIANTS, VARIANT_BY_ID } from './config.js';
+import { TOWERS, COMMANDERS, TARGET, PALETTE, GRID, PRIORITY, VARIANTS, VARIANT_BY_ID, ECONOMY } from './config.js';
 import { Weapons, enemiesInRange, selectTarget } from './combat.js';
 
 const C = GRID.cell;
@@ -16,14 +16,25 @@ export const m = (mods, key) => mods[key] || 0;
 export function getTowerDef(id) { return COMMANDERS[id] || TOWERS[id]; }
 
 /** Coût de construction, modificateurs inclus (les commandants ont un coût fixe). */
-export function towerCost(id, mods, variantId) {
+/**
+ * Facteur d'encombrement : plus la defense est dense, plus la tourelle
+ * suivante coute cher. C'est ce qui empeche de remplir la carte en fin
+ * de partie et force a arbitrer entre poser et ameliorer.
+ */
+export function crowdingFactor(game) {
+  const n = game && game.towers ? game.towers.length : 0;
+  const over = Math.max(0, n - ECONOMY.costFree);
+  return Math.min(ECONOMY.costCap, Math.pow(ECONOMY.costGrowth, over));
+}
+
+export function towerCost(id, mods, variantId, game) {
   if (COMMANDERS[id]) return COMMANDERS[id].cost;
   let base = TOWERS[id].cost;
   // Une variante peut coûter plus cher que la version de base.
   const entry = variantId ? VARIANT_BY_ID[variantId] : null;
   if (entry && entry.def.cost) base = Math.round(base * entry.def.cost);
   const mult = Math.max(0.4, 1 + m(mods, `${id}.cost`) + m(mods, 'player.allCost'));
-  return Math.max(10, Math.round(base * mult));
+  return Math.max(10, Math.round(base * mult * crowdingFactor(game)));
 }
 
 
@@ -55,7 +66,7 @@ export class Tower {
     this.px = game.grid.cx(gx);
     this.py = game.grid.cy(gy);
     this.level = 0;                 // 0..3
-    this.invested = towerCost(id, game.mods);
+    this.invested = towerCost(id, game.mods, game.loadout && game.loadout[this.archetype], game);
     this.priority = 'first';
     this.cooldown = 0;
     this.angle = -Math.PI / 2;

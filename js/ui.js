@@ -247,7 +247,7 @@ export function buildShop(game, onPick) {
         <span class="shop-name">${t.name}</span>
         <span class="shop-tags">${TARGET_LABEL[t.targets]}</span>
       </span>
-      <span class="shop-cost" data-cost>${towerCost(id, game.mods)}</span>
+      <span class="shop-cost" data-cost>${towerCost(id, game.mods, game.loadout && game.loadout[id], game)}</span>
       <span class="shop-key">${i + 1}</span>`;
     btn.title = t.desc;
     btn.addEventListener('click', () => onPick(id));
@@ -267,7 +267,7 @@ export function buildShop(game, onPick) {
         <span class="shop-name">${c.name}</span>
         <span class="shop-tags">COMMANDANT</span>
       </span>
-      <span class="shop-cost" data-cost>${towerCost(cid, game.mods)}</span>`;
+      <span class="shop-cost" data-cost>${towerCost(cid, game.mods, null, game)}</span>`;
     btn.title = c.desc;
     btn.addEventListener('click', () => onPick(cid));
     list.appendChild(btn);
@@ -277,7 +277,7 @@ export function buildShop(game, onPick) {
 export function refreshShop(game) {
   $$('.shop-item').forEach((el) => {
     const id = el.dataset.tower;
-    const cost = towerCost(id, game.mods);
+    const cost = towerCost(id, game.mods, game.loadout && game.loadout[id], game);
     if (COMMANDERS[id]) {
       const deployed = game.towers.some((t) => t.isCommander);
       el.querySelector('[data-cost]').textContent = deployed ? 'DÉPLOYÉ' : cost;

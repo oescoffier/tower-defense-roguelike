@@ -454,7 +454,10 @@ function completeWave() {
 
   const bonusMult = 1 + (game.mods['player.waveBonus'] || 0);
   const bonus = Math.round((ECONOMY.waveBonusBase + ECONOMY.waveBonusPerWave * game.wave) * bonusMult);
-  const interest = Math.round(game.gold * (game.mods['player.interest'] || 0));
+  const interest = Math.min(
+    ECONOMY.interestCap,
+    Math.round(game.gold * (game.mods['player.interest'] || 0))
+  );
   game.gold += bonus + interest;
 
   // GÉNIE MILITAIRE : régénération lente de l'intégrité.
@@ -956,7 +959,7 @@ function updatePlaceValidity() {
     game.placeReason = 'CASE INDIQUÉE';
     return;
   }
-  const cost = towerCost(game.placing, game.mods);
+  const cost = towerCost(game.placing, game.mods, game.loadout && game.loadout[game.placing], game);
   const free = !COMMANDERS[game.placing] && game.mods['player.war'] && !game.freeTypes.has(game.placing);
   if (COMMANDERS[game.placing] && hasCommanderDeployed()) {
     game.placeValid = false;
@@ -980,7 +983,7 @@ function tryPlace() {
     return;
   }
 
-  const cost = towerCost(id, game.mods);
+  const cost = towerCost(id, game.mods, game.loadout && game.loadout[id], game);
   const free = !COMMANDERS[id] && game.mods['player.war'] && !game.freeTypes.has(id);
 
   if (COMMANDERS[id] && hasCommanderDeployed()) {
